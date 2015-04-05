@@ -268,7 +268,7 @@ static void open_glut_window ( void )
 {
 	glutInitDisplayMode ( GLUT_RGBA | GLUT_DOUBLE );
 
-	glutInitWindowPosition ( 0, 0 );
+	glutInitWindowPosition ( 200, 200 );
 	glutInitWindowSize ( win_x, win_y );
 	win_id = glutCreateWindow ( "Alias | wavefront" );
 
