@@ -12,48 +12,51 @@
 #include "FluidSolver.h"
 
 static const int N = 64;
-static float dt, diff, visc;
-static float force, source;
-static int dvel;
+static float TIME_DELTA = 0.1f;
+static float DIFFUSION_RATE;
+static float VISCOSITY = 0.f;
+static float FORCE = 5.f;
+static float SOURCE_DENSITY = 100;
+static bool  DISPLAY_VEL = false;
 
 //==================================================================
-//template <size_t DIMS>
+template <size_t DIMS>
 struct SimData
 {
     using vec = std::vector<float>;
 
-    vec u;
-    vec v;
-    vec u_prev;
-    vec v_prev;
-    vec dens;
-    vec dens_prev;
+    vec vel1[DIMS];
+    vec vel0[DIMS];
+    vec dens1;
+    vec dens0;
 
     void Alloc( int n )
     {
-        u.resize( n );
-        v.resize( n );
-        u_prev.resize( n );
-        v_prev.resize( n );
-        dens.resize( n );
-        dens_prev.resize( n );
+        for (size_t i=0; i != DIMS; ++i)
+        {
+            vel1[i].resize( n );
+            vel0[i].resize( n );
+        }
+        dens1.resize( n );
+        dens0.resize( n );
     }
 
     void Clear()
     {
-        fillZero( u );
-        fillZero( v );
-        fillZero( u_prev );
-        fillZero( v_prev );
-        fillZero( dens );
-        fillZero( dens_prev );
+        for (size_t i=0; i != DIMS; ++i)
+        {
+            fillZero( vel1[i] );
+            fillZero( vel0[i] );
+        }
+        fillZero( dens1 );
+        fillZero( dens0 );
     }
 
 private:
     void fillZero( std::vector<float> &v ) { for (auto &x : v) x = 0; }
 };
 
-static SimData gsSimData;
+static SimData<2> gsSimData;
 
 static int win_id;
 static int win_x, win_y;
@@ -94,8 +97,8 @@ static void draw_velocity()
 
 				glVertex2f( x, y );
 				glVertex2f(
-                    x + gsSolver.SMP( gsSimData.u, i, j ),
-                    y + gsSolver.SMP( gsSimData.v, i, j ) );
+                    x + gsSolver.SMP( gsSimData.vel1[0], i, j ),
+                    y + gsSolver.SMP( gsSimData.vel1[1], i, j ) );
 			}
 		}
 
@@ -116,10 +119,10 @@ static void draw_density()
             {
 				float y = (j-0.5f)*h;
 
-				float d00 = gsSolver.SMP( gsSimData.dens, i  , j   );
-				float d01 = gsSolver.SMP( gsSimData.dens, i  , j+1 );
-				float d10 = gsSolver.SMP( gsSimData.dens, i+1, j   );
-				float d11 = gsSolver.SMP( gsSimData.dens, i+1, j+1 );
+				float d00 = gsSolver.SMP( gsSimData.dens1, i  , j   );
+				float d01 = gsSolver.SMP( gsSimData.dens1, i  , j+1 );
+				float d10 = gsSolver.SMP( gsSimData.dens1, i+1, j   );
+				float d11 = gsSolver.SMP( gsSimData.dens1, i+1, j+1 );
 
 				glColor3f( d00, d00, d00 ); glVertex2f( x, y );
 				glColor3f( d10, d10, d10 ); glVertex2f( x+h, y );
@@ -148,12 +151,12 @@ static void get_from_UI ( float * d, float * u, float * v )
 	if ( i<1 || i>N || j<1 || j>N ) return;
 
 	if ( mouse_down[0] ) {
-		gsSolver.SMP( u, i, j ) = force * (mx-omx);
-		gsSolver.SMP( v, i, j ) = force * (omy-my);
+		gsSolver.SMP( u, i, j ) = FORCE * (mx-omx);
+		gsSolver.SMP( v, i, j ) = FORCE * (omy-my);
 	}
 
 	if ( mouse_down[2] ) {
-		gsSolver.SMP( d, i, j ) = source;
+		gsSolver.SMP( d, i, j ) = SOURCE_DENSITY;
 	}
 
 	omx = mx;
@@ -179,7 +182,7 @@ static void key_func ( unsigned char key, int x, int y )
 
 		case 'v':
 		case 'V':
-			dvel = !dvel;
+			DISPLAY_VEL = !DISPLAY_VEL;
 			break;
 	}
 }
@@ -210,25 +213,25 @@ static void reshape_func ( int width, int height )
 static void idle_func()
 {
 	get_from_UI(
-            gsSimData.dens_prev.data(),
-            gsSimData.u_prev.data(),
-            gsSimData.v_prev.data() );
+            gsSimData.dens0.data(),
+            gsSimData.vel0[0].data(),
+            gsSimData.vel0[1].data() );
 
 	gsSolver.vel_step(
-            gsSimData.u.data(),
-            gsSimData.v.data(),
-            gsSimData.u_prev.data(),
-            gsSimData.v_prev.data(),
-            visc,
-            dt );
+            gsSimData.vel1[0].data(),
+            gsSimData.vel1[1].data(),
+            gsSimData.vel0[0].data(),
+            gsSimData.vel0[1].data(),
+            VISCOSITY,
+            TIME_DELTA );
 
 	gsSolver.dens_step(
-            gsSimData.dens.data(),
-            gsSimData.dens_prev.data(),
-            gsSimData.u.data(),
-            gsSimData.v.data(),
-            diff,
-            dt );
+            gsSimData.dens1.data(),
+            gsSimData.dens0.data(),
+            gsSimData.vel1[0].data(),
+            gsSimData.vel1[1].data(),
+            DIFFUSION_RATE,
+            TIME_DELTA );
 
 	glutSetWindow ( win_id );
 	glutPostRedisplay ();
@@ -239,8 +242,8 @@ static void display_func()
 {
 	pre_display ();
 
-		if ( dvel ) draw_velocity ();
-		else		draw_density ();
+		if ( DISPLAY_VEL ) draw_velocity ();
+		else		       draw_density ();
 
 	glutSwapBuffers();
 }
@@ -290,20 +293,19 @@ int main ( int argc, char ** argv )
 
 	if ( argc == 1 ) {
 		//N = 64;
-		dt = 0.1f;
-		diff = 0.0f;
-		visc = 0.0f;
-		force = 5.0f;
-		source = 100.0f;
+		TIME_DELTA = 0.1f;
+		DIFFUSION_RATE = 0.0f;
+		VISCOSITY = 0.0f;
+		SOURCE_DENSITY = 100.0f;
 		fprintf ( stderr, "Using defaults : N=%d dt=%g diff=%g visc=%g force = %g source=%g\n",
-			N, dt, diff, visc, force, source );
+			N, TIME_DELTA, DIFFUSION_RATE, VISCOSITY, FORCE, SOURCE_DENSITY );
 	} else {
 		//N = atoi(argv[1]);
-		dt = atof(argv[2]);
-		diff = atof(argv[3]);
-		visc = atof(argv[4]);
-		force = atof(argv[5]);
-		source = atof(argv[6]);
+		TIME_DELTA = atof(argv[2]);
+		DIFFUSION_RATE = atof(argv[3]);
+		VISCOSITY = atof(argv[4]);
+		FORCE = atof(argv[5]);
+		SOURCE_DENSITY = atof(argv[6]);
 	}
 
 	printf ( "\n\nHow to use this demo:\n\n" );
@@ -312,8 +314,6 @@ int main ( int argc, char ** argv )
 	printf ( "\t Toggle density/velocity display with the 'v' key\n" );
 	printf ( "\t Clear the simulation by pressing the 'c' key\n" );
 	printf ( "\t Quit by pressing the 'q' key\n" );
-
-	dvel = 0;
 
     gsSimData.Alloc( (N+2)*(N+2) );
     gsSimData.Clear();

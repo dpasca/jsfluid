@@ -21,7 +21,6 @@ class FluidSolver
     void diffuse( int b, float *x, const float *x0, float diff, float dt );
 
     void advect(
-        int b,
         float *d,
         const float *d0,
         const float *u,
@@ -103,7 +102,6 @@ inline float clamp( float x, float mi, float ma )
 
 template <int N>
 void FluidSolver<N>::advect(
-        int b,
         float *d,
         const float *d0,
         const float *u,
@@ -138,7 +136,6 @@ void FluidSolver<N>::advect(
                          s1 * (t0 * SMP(d0,i1,j0) + t1 * SMP(d0,i1,j1));
         }
     }
-    set_bnd( b, d );
 }
 
 template <int N>
@@ -178,7 +175,9 @@ void FluidSolver<N>::dens_step( float *xb, float *xa, float *u, float *v, float 
 {
     add_source( xb, xa, dt );
     diffuse( 0, xa, xb, diff, dt );
-    advect( 0, xb, xa, u, v, dt );
+
+    advect( xb, xa, u, v, dt );
+    set_bnd( 0, xb );
 }
 
 template <int N>
@@ -192,8 +191,11 @@ void FluidSolver<N>::vel_step( float *u, float *v, float *u0, float *v0, float v
 
     project( u0, v0, u, v );
 
-    advect( 1, u, u0, u0, v0, dt );
-    advect( 2, v, v0, u0, v0, dt );
+    advect( u, u0, u0, v0, dt );
+    set_bnd( 1, u );
+
+    advect( v, v0, u0, v0, dt );
+    set_bnd( 2, v );
 
     project( u, v, u0, v0 );
 }
