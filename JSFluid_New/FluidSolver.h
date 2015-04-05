@@ -9,126 +9,151 @@
 #define FLUIDSOLVER_H
 
 #include <algorithm>
+#include <vector>
 
 //==================================================================
-template <int SIZ>
+template <int N>
 class FluidSolver
 {
     void add_source( float *x, const float *s, float dt );
     void set_bnd( int b, float *x );
     void lin_solve( int b, float *x, const float *x0, float a, float c );
-    void diffuse( int b, float *x, float *x0, float diff, float dt );
-    void advect( int b, float *d, float *d0, float *u, float *v, float dt );
+    void diffuse( int b, float *x, const float *x0, float diff, float dt );
+
+    void advect(
+        int b,
+        float *d,
+        const float *d0,
+        const float *u,
+        const float *v,
+        float dt );
+
     void project( float *u, float *v, float *p, float *div );
 
 public:
-    static int IX(int i, int j) { return i + (SIZ+2) *j; }
+    static       float &SMP(      float *p, int i, int j) { return p[ i + (N+2) *j ]; }
+    static const float &SMP(const float *p, int i, int j) { return p[ i + (N+2) *j ]; }
+    static const float &SMP(const std::vector<float> &v, int i, int j) { return v[ i + (N+2) *j ]; }
 
     void dens_step( float *x, float *x0, float *u, float *v, float diff, float dt );
     void vel_step( float *u, float *v, float *u0, float *v0, float visc, float dt );
 };
 
 //==================================================================
-template <int SIZ>
-void FluidSolver<SIZ>::add_source( float *x, const float *s, float dt )
+template <int N>
+void FluidSolver<N>::add_source( float *x, const float *s, float dt )
 {
-    const int size = (SIZ+2) *(SIZ+2);
+    const int size = (N+2) *(N+2);
 
     for (int i=0 ; i < size; ++i)
         x[i] += dt * s[i];
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::set_bnd( int b, float *x )
+template <int N>
+void FluidSolver<N>::set_bnd( int b, float *x )
 {
-    for (int i=1; i <= SIZ; ++i)
+    for (int i=1; i <= N; ++i)
     {
-        x[IX(0    ,i)] = b==1 ? -x[IX(1  ,i)] : x[IX(1  ,i)];
-        x[IX(SIZ+1,i)] = b==1 ? -x[IX(SIZ,i)] : x[IX(SIZ,i)];
-        x[IX(i,0    )] = b==2 ? -x[IX(i  ,1)] : x[IX(i  ,1)];
-        x[IX(i,SIZ+1)] = b==2 ? -x[IX(i,SIZ)] : x[IX(i,SIZ)];
+        SMP(x, 0  ,   i) = b==1 ? -SMP(x, 1, i) : SMP(x, 1, i);
+        SMP(x, N+1,   i) = b==1 ? -SMP(x, N, i) : SMP(x, N, i);
+        SMP(x, i  ,   0) = b==2 ? -SMP(x, i, 1) : SMP(x, i, 1);
+        SMP(x, i  , N+1) = b==2 ? -SMP(x, i, N) : SMP(x, i, N);
     }
-    x[IX(0  ,0      )] = 0.5f * (x[IX(1  , 0    )] + x[IX(0    , 1  )]);
-    x[IX(0  ,SIZ+1  )] = 0.5f * (x[IX(1  , SIZ+1)] + x[IX(0    , SIZ)]);
-    x[IX(SIZ+1,0    )] = 0.5f * (x[IX(SIZ, 0    )] + x[IX(SIZ+1, 1  )]);
-    x[IX(SIZ+1,SIZ+1)] = 0.5f * (x[IX(SIZ, SIZ+1)] + x[IX(SIZ+1, SIZ)]);
+    SMP(x, 0  ,0  ) = 0.5f * (SMP(x, 1, 0  ) + SMP(x, 0  , 1));
+    SMP(x, 0  ,N+1) = 0.5f * (SMP(x, 1, N+1) + SMP(x, 0  , N));
+    SMP(x, N+1,0  ) = 0.5f * (SMP(x, N, 0  ) + SMP(x, N+1, 1));
+    SMP(x, N+1,N+1) = 0.5f * (SMP(x, N, N+1) + SMP(x, N+1, N));
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::lin_solve( int b, float *x, const float *x0, float a, float c )
+template <int N>
+void FluidSolver<N>::lin_solve( int b, float *x, const float *x0, float a, float c )
 {
     float ooc = 1.f / c;
 
     for (int k=0 ; k < 20; ++k)
     {
-        for (int i=1; i <= SIZ; ++i)
+        for (int i=1; i <= N; ++i)
         {
-            for (int j=1; j <= SIZ; ++j)
+            for (int j=1; j <= N; ++j)
             {
-                x[IX(i,j)] = (   x0[IX(i  , j  )] +
-                               a*(x[IX(i-1, j  )] +
-                                  x[IX(i+1, j  )] +
-                                  x[IX(i  , j-1)] +
-                                  x[IX(i  , j+1)])) * ooc;
+                SMP(x,i,j) = (    SMP(x0, i  , j  ) +
+                               a*(SMP(x , i-1, j  ) +
+                                  SMP(x , i+1, j  ) +
+                                  SMP(x , i  , j-1) +
+                                  SMP(x , i  , j+1))) * ooc;
             }
         }
         set_bnd( b, x );
     }
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::diffuse( int b, float *x, float *x0, float diff, float dt )
+template <int N>
+void FluidSolver<N>::diffuse( int b, float *x, const float *x0, float diff, float dt )
 {
-    float a = dt * diff * SIZ * SIZ;
+    float a = dt * diff * N * N;
 
     lin_solve( b, x, x0, a, 1+4*a );
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::advect( int b, float *d, float *d0, float *u, float *v, float dt )
+inline float clamp( float x, float mi, float ma )
 {
-    float dt0 = dt * SIZ;
+    auto t = x < mi ? mi : x;
+    return t > ma ? ma : t;
+}
 
-    for (int i=1; i <= SIZ; ++i)
+template <int N>
+void FluidSolver<N>::advect(
+        int b,
+        float *d,
+        const float *d0,
+        const float *u,
+        const float *v,
+        float dt )
+{
+    float dt0 = dt * N;
+
+    for (int i=1; i <= N; ++i)
     {
-        for (int j=1; j <= SIZ; ++j)
+        for (int j=1; j <= N; ++j)
         {
-            float x = i-dt0*u[IX(i,j)];
-            float y = j-dt0*v[IX(i,j)];
+            float x = i - dt0 * SMP(u,i,j);
+            float y = j - dt0 * SMP(v,i,j);
 
-            if (x < 0.5f)     x = 0.5f;
-            if (x > SIZ+0.5f) x = SIZ+0.5f;
+            x = clamp( x, 0.5f, N + 0.5f );
 
             int i0 = (int)x;
             int i1 = i0+1;
 
-            if (y < 0.5f)     y = 0.5f;
-            if (y > SIZ+0.5f) y = SIZ+0.5f;
+            y = clamp( y, 0.5f, N + 0.5f );
 
             int j0 = (int)y;
             int j1 = j0+1;
 
-            float s1 = x-i0;
-            float s0 = 1-s1;
-            float t1 = y-j0;
-            float t0 = 1-t1;
+            float s1 = x - i0;
+            float s0 = 1 - s1;
+            float t1 = y - j0;
+            float t0 = 1 - t1;
 
-            d[IX(i,j)] = s0 * (t0 * d0[IX(i0,j0)] + t1 * d0[IX(i0,j1)]) +
-                         s1 * (t0 * d0[IX(i1,j0)] + t1 * d0[IX(i1,j1)]);
+            SMP(d,i,j) = s0 * (t0 * SMP(d0,i0,j0) + t1 * SMP(d0,i0,j1)) +
+                         s1 * (t0 * SMP(d0,i1,j0) + t1 * SMP(d0,i1,j1));
         }
     }
     set_bnd( b, d );
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::project( float *u, float *v, float *p, float *div )
+template <int N>
+void FluidSolver<N>::project( float *u, float *v, float *p, float *div )
 {
-    for (int i=1; i <= SIZ; ++i)
+    const float sca = -0.5f / N;
+    for (int i=1; i <= N; ++i)
     {
-        for (int j=1; j <= SIZ; ++j)
+        for (int j=1; j <= N; ++j)
         {
-            div[IX(i,j)] = -(0.5f / SIZ) * (u[IX(i+1,j)] - u[IX(i-1,j)] + v[IX(i,j+1)] - v[IX(i,j-1)]);
-            p[IX(i,j)] = 0;
+            float dx = SMP(u, i+1, j  ) - SMP(u, i-1, j  );
+            float dy = SMP(v, i  , j+1) - SMP(v, i  , j-1);
+
+            SMP(div, i, j) = sca * (dx + dy);
+            SMP(p  , i, j) = 0;
         }
     }
     set_bnd( 0, div );
@@ -136,38 +161,36 @@ void FluidSolver<SIZ>::project( float *u, float *v, float *p, float *div )
 
     lin_solve( 0, p, div, 1, 4 );
 
-    for (int i=1; i <= SIZ; ++i)
+    for (int i=1; i <= N; ++i)
     {
-        for (int j=1; j <= SIZ; ++j)
+        for (int j=1; j <= N; ++j)
         {
-            u[IX(i,j)] -= (0.5f * SIZ) * (p[IX(i+1,j)] - p[IX(i-1,j)]);
-            v[IX(i,j)] -= (0.5f * SIZ) * (p[IX(i,j+1)] - p[IX(i,j-1)]);
+            SMP(u,i,j) -= (0.5f * N) * (SMP(p,i+1,j) - SMP(p,i-1,j));
+            SMP(v,i,j) -= (0.5f * N) * (SMP(p,i,j+1) - SMP(p,i,j-1));
         }
     }
     set_bnd( 1, u );
     set_bnd( 2, v );
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::dens_step( float *x, float *x0, float *u, float *v, float diff, float dt )
+template <int N>
+void FluidSolver<N>::dens_step( float *xb, float *xa, float *u, float *v, float diff, float dt )
 {
-    add_source( x, x0, dt );
-    std::swap( x0, x ); diffuse( 0, x, x0, diff, dt );
-    std::swap( x0, x ); advect( 0, x, x0, u, v, dt );
+    add_source( xb, xa, dt );
+    diffuse( 0, xa, xb, diff, dt );
+    advect( 0, xb, xa, u, v, dt );
 }
 
-template <int SIZ>
-void FluidSolver<SIZ>::vel_step( float *u, float *v, float *u0, float *v0, float visc, float dt )
+template <int N>
+void FluidSolver<N>::vel_step( float *u, float *v, float *u0, float *v0, float visc, float dt )
 {
     add_source( u, u0, dt );
     add_source( v, v0, dt );
 
-    std::swap( u0, u ); diffuse( 1, u, u0, visc, dt );
-    std::swap( v0, v ); diffuse( 2, v, v0, visc, dt );
+    diffuse( 1, u0, u, visc, dt );
+    diffuse( 2, v0, v, visc, dt );
 
-    project( u, v, u0, v0 );
-
-    std::swap( u0, u ); std::swap( v0, v );
+    project( u0, v0, u, v );
 
     advect( 1, u, u0, u0, v0, dt );
     advect( 2, v, v0, u0, v0, dt );

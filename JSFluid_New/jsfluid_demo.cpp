@@ -7,18 +7,53 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <vector>
 #include <GL/glut.h>
 #include "FluidSolver.h"
-
-/* global variables */
 
 static const int N = 64;
 static float dt, diff, visc;
 static float force, source;
 static int dvel;
 
-static float * u, * v, * u_prev, * v_prev;
-static float * dens, * dens_prev;
+//==================================================================
+//template <size_t DIMS>
+struct SimData
+{
+    using vec = std::vector<float>;
+
+    vec u;
+    vec v;
+    vec u_prev;
+    vec v_prev;
+    vec dens;
+    vec dens_prev;
+
+    void Alloc( int n )
+    {
+        u.resize( n );
+        v.resize( n );
+        u_prev.resize( n );
+        v_prev.resize( n );
+        dens.resize( n );
+        dens_prev.resize( n );
+    }
+
+    void Clear()
+    {
+        fillZero( u );
+        fillZero( v );
+        fillZero( u_prev );
+        fillZero( v_prev );
+        fillZero( dens );
+        fillZero( dens_prev );
+    }
+
+private:
+    void fillZero( std::vector<float> &v ) { for (auto &x : v) x = 0; }
+};
+
+static SimData gsSimData;
 
 static int win_id;
 static int win_x, win_y;
@@ -28,59 +63,8 @@ static int omx, omy, mx, my;
 //==================================================================
 static FluidSolver<N> gsSolver;
 
-/*
-  ----------------------------------------------------------------------
-   free/clear/allocate simulation data
-  ----------------------------------------------------------------------
-*/
-
-
-static void free_data ( void )
-{
-	if ( u ) free ( u );
-	if ( v ) free ( v );
-	if ( u_prev ) free ( u_prev );
-	if ( v_prev ) free ( v_prev );
-	if ( dens ) free ( dens );
-	if ( dens_prev ) free ( dens_prev );
-}
-
-static void clear_data ( void )
-{
-	int i, size=(N+2)*(N+2);
-
-	for ( i=0 ; i<size ; i++ ) {
-		u[i] = v[i] = u_prev[i] = v_prev[i] = dens[i] = dens_prev[i] = 0.0f;
-	}
-}
-
-static int allocate_data ( void )
-{
-	int size = (N+2)*(N+2);
-
-	u			= (float *) malloc ( size*sizeof(float) );
-	v			= (float *) malloc ( size*sizeof(float) );
-	u_prev		= (float *) malloc ( size*sizeof(float) );
-	v_prev		= (float *) malloc ( size*sizeof(float) );
-	dens		= (float *) malloc ( size*sizeof(float) );	
-	dens_prev	= (float *) malloc ( size*sizeof(float) );
-
-	if ( !u || !v || !u_prev || !v_prev || !dens || !dens_prev ) {
-		fprintf ( stderr, "cannot allocate data\n" );
-		return ( 0 );
-	}
-
-	return ( 1 );
-}
-
-
-/*
-  ----------------------------------------------------------------------
-   OpenGL specific drawing routines
-  ----------------------------------------------------------------------
-*/
-
-static void pre_display ( void )
+//==================================================================
+static void pre_display()
 {
 	glViewport ( 0, 0, win_x, win_y );
 	glMatrixMode ( GL_PROJECTION );
@@ -90,71 +74,64 @@ static void pre_display ( void )
 	glClear ( GL_COLOR_BUFFER_BIT );
 }
 
-static void post_display ( void )
+//==================================================================
+static void draw_velocity()
 {
-	glutSwapBuffers ();
-}
-
-static void draw_velocity ( void )
-{
-	int i, j;
-	float x, y, h;
-
-	h = 1.0f/N;
+	float h = 1.0f/N;
 
 	glColor3f ( 1.0f, 1.0f, 1.0f );
 	glLineWidth ( 1.0f );
 
 	glBegin ( GL_LINES );
 
-		for ( i=1 ; i<=N ; i++ ) {
-			x = (i-0.5f)*h;
-			for ( j=1 ; j<=N ; j++ ) {
-				y = (j-0.5f)*h;
+		for (int i=1 ; i<=N ; i++ )
+        {
+			float x = (i-0.5f)*h;
 
-				glVertex2f ( x, y );
-				glVertex2f ( x+u[ gsSolver.IX(i,j)], y+v[ gsSolver.IX(i,j)] );
+			for (int j=1 ; j<=N ; j++ )
+            {
+				float y = (j-0.5f)*h;
+
+				glVertex2f( x, y );
+				glVertex2f(
+                    x + gsSolver.SMP( gsSimData.u, i, j ),
+                    y + gsSolver.SMP( gsSimData.v, i, j ) );
 			}
 		}
 
 	glEnd ();
 }
 
-static void draw_density ( void )
+//==================================================================
+static void draw_density()
 {
-	int i, j;
-	float x, y, h, d00, d01, d10, d11;
-
-	h = 1.0f/N;
+	float h = 1.0f/N;
 
 	glBegin ( GL_QUADS );
 
-		for ( i=0 ; i<=N ; i++ ) {
-			x = (i-0.5f)*h;
-			for ( j=0 ; j<=N ; j++ ) {
-				y = (j-0.5f)*h;
+		for (int i=0 ; i<=N ; i++ )
+        {
+			float x = (i-0.5f)*h;
+			for (int j=0 ; j<=N ; j++ )
+            {
+				float y = (j-0.5f)*h;
 
-				d00 = dens[ gsSolver.IX(i,j) ];
-				d01 = dens[ gsSolver.IX(i,j+1) ];
-				d10 = dens[ gsSolver.IX(i+1,j) ];
-				d11 = dens[ gsSolver.IX(i+1,j+1) ];
+				float d00 = gsSolver.SMP( gsSimData.dens, i  , j   );
+				float d01 = gsSolver.SMP( gsSimData.dens, i  , j+1 );
+				float d10 = gsSolver.SMP( gsSimData.dens, i+1, j   );
+				float d11 = gsSolver.SMP( gsSimData.dens, i+1, j+1 );
 
-				glColor3f ( d00, d00, d00 ); glVertex2f ( x, y );
-				glColor3f ( d10, d10, d10 ); glVertex2f ( x+h, y );
-				glColor3f ( d11, d11, d11 ); glVertex2f ( x+h, y+h );
-				glColor3f ( d01, d01, d01 ); glVertex2f ( x, y+h );
+				glColor3f( d00, d00, d00 ); glVertex2f( x, y );
+				glColor3f( d10, d10, d10 ); glVertex2f( x+h, y );
+				glColor3f( d11, d11, d11 ); glVertex2f( x+h, y+h );
+				glColor3f( d01, d01, d01 ); glVertex2f( x, y+h );
 			}
 		}
 
 	glEnd ();
 }
 
-/*
-  ----------------------------------------------------------------------
-   relates mouse movements to forces sources
-  ----------------------------------------------------------------------
-*/
-
+//==================================================================
 static void get_from_UI ( float * d, float * u, float * v )
 {
 	int i, j, size = (N+2)*(N+2);
@@ -171,12 +148,12 @@ static void get_from_UI ( float * d, float * u, float * v )
 	if ( i<1 || i>N || j<1 || j>N ) return;
 
 	if ( mouse_down[0] ) {
-		u[ gsSolver.IX(i,j)] = force * (mx-omx);
-		v[ gsSolver.IX(i,j)] = force * (omy-my);
+		gsSolver.SMP( u, i, j ) = force * (mx-omx);
+		gsSolver.SMP( v, i, j ) = force * (omy-my);
 	}
 
 	if ( mouse_down[2] ) {
-		d[ gsSolver.IX(i,j)] = source;
+		gsSolver.SMP( d, i, j ) = source;
 	}
 
 	omx = mx;
@@ -185,24 +162,18 @@ static void get_from_UI ( float * d, float * u, float * v )
 	return;
 }
 
-/*
-  ----------------------------------------------------------------------
-   GLUT callback routines
-  ----------------------------------------------------------------------
-*/
-
+//==================================================================
 static void key_func ( unsigned char key, int x, int y )
 {
 	switch ( key )
 	{
 		case 'c':
 		case 'C':
-			clear_data ();
+			gsSimData.Clear();
 			break;
 
 		case 'q':
 		case 'Q':
-			free_data ();
 			exit ( 0 );
 			break;
 
@@ -236,41 +207,53 @@ static void reshape_func ( int width, int height )
 	win_y = height;
 }
 
-static void idle_func ( void )
+static void idle_func()
 {
-	get_from_UI ( dens_prev, u_prev, v_prev );
+	get_from_UI(
+            gsSimData.dens_prev.data(),
+            gsSimData.u_prev.data(),
+            gsSimData.v_prev.data() );
 
-	gsSolver.vel_step ( u, v, u_prev, v_prev, visc, dt );
-	gsSolver.dens_step ( dens, dens_prev, u, v, diff, dt );
+	gsSolver.vel_step(
+            gsSimData.u.data(),
+            gsSimData.v.data(),
+            gsSimData.u_prev.data(),
+            gsSimData.v_prev.data(),
+            visc,
+            dt );
+
+	gsSolver.dens_step(
+            gsSimData.dens.data(),
+            gsSimData.dens_prev.data(),
+            gsSimData.u.data(),
+            gsSimData.v.data(),
+            diff,
+            dt );
 
 	glutSetWindow ( win_id );
 	glutPostRedisplay ();
 }
 
-static void display_func ( void )
+//==================================================================
+static void display_func()
 {
 	pre_display ();
 
 		if ( dvel ) draw_velocity ();
 		else		draw_density ();
 
-	post_display ();
+	glutSwapBuffers();
 }
 
 
-/*
-  ----------------------------------------------------------------------
-   open_glut_window --- open a glut compatible window and set callbacks
-  ----------------------------------------------------------------------
-*/
-
+//==================================================================
 static void open_glut_window ( void )
 {
 	glutInitDisplayMode ( GLUT_RGBA | GLUT_DOUBLE );
 
 	glutInitWindowPosition ( 200, 200 );
 	glutInitWindowSize ( win_x, win_y );
-	win_id = glutCreateWindow ( "Alias | wavefront" );
+	win_id = glutCreateWindow ( "Fluid Test" );
 
 	glClearColor ( 0.0f, 0.0f, 0.0f, 1.0f );
 	glClear ( GL_COLOR_BUFFER_BIT );
@@ -288,13 +271,7 @@ static void open_glut_window ( void )
 	glutDisplayFunc ( display_func );
 }
 
-
-/*
-  ----------------------------------------------------------------------
-   main --- main routine
-  ----------------------------------------------------------------------
-*/
-
+//==================================================================
 int main ( int argc, char ** argv )
 {
 	glutInit ( &argc, argv );
@@ -338,8 +315,8 @@ int main ( int argc, char ** argv )
 
 	dvel = 0;
 
-	if ( !allocate_data () ) exit ( 1 );
-	clear_data ();
+    gsSimData.Alloc( (N+2)*(N+2) );
+    gsSimData.Clear();
 
 	win_x = 512;
 	win_y = 512;
