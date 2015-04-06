@@ -69,12 +69,12 @@ static FluidSolver<N> gsSolver;
 //==================================================================
 static void pre_display()
 {
-	glViewport ( 0, 0, win_x, win_y );
-	glMatrixMode ( GL_PROJECTION );
-	glLoadIdentity ();
-	gluOrtho2D ( 0.0, 1.0, 0.0, 1.0 );
-	glClearColor ( 0.0f, 0.0f, 0.0f, 1.0f );
-	glClear ( GL_COLOR_BUFFER_BIT );
+	glViewport( 0, 0, win_x, win_y );
+	glMatrixMode( GL_PROJECTION );
+	glLoadIdentity();
+	gluOrtho2D( 0.0, 1.0, 0.0, 1.0 );
+	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
+	glClear( GL_COLOR_BUFFER_BIT );
 }
 
 //==================================================================
@@ -82,10 +82,10 @@ static void draw_velocity()
 {
 	float h = 1.0f/N;
 
-	glColor3f ( 1.0f, 1.0f, 1.0f );
-	glLineWidth ( 1.0f );
+	glColor3f( 1.0f, 1.0f, 1.0f );
+	glLineWidth( 1.0f );
 
-	glBegin ( GL_LINES );
+	glBegin( GL_LINES );
 
 		for (int i=1 ; i<=N ; i++ )
         {
@@ -102,7 +102,7 @@ static void draw_velocity()
 			}
 		}
 
-	glEnd ();
+	glEnd();
 }
 
 //==================================================================
@@ -110,7 +110,7 @@ static void draw_density()
 {
 	float h = 1.0f/N;
 
-	glBegin ( GL_QUADS );
+	glBegin( GL_QUADS );
 
 		for (int i=0 ; i<=N ; i++ )
         {
@@ -131,11 +131,11 @@ static void draw_density()
 			}
 		}
 
-	glEnd ();
+	glEnd();
 }
 
 //==================================================================
-static void get_from_UI ( float * d, float * u, float * v )
+static void get_from_UI( float * d, float * u, float * v )
 {
 	int i, j, size = (N+2)*(N+2);
 
@@ -166,7 +166,7 @@ static void get_from_UI ( float * d, float * u, float * v )
 }
 
 //==================================================================
-static void key_func ( unsigned char key, int x, int y )
+static void key_func( unsigned char key, int x, int y )
 {
 	switch ( key )
 	{
@@ -177,7 +177,7 @@ static void key_func ( unsigned char key, int x, int y )
 
 		case 'q':
 		case 'Q':
-			exit ( 0 );
+			exit( 0 );
 			break;
 
 		case 'v':
@@ -187,7 +187,7 @@ static void key_func ( unsigned char key, int x, int y )
 	}
 }
 
-static void mouse_func ( int button, int state, int x, int y )
+static void mouse_func( int button, int state, int x, int y )
 {
 	omx = mx = x;
 	omx = my = y;
@@ -195,16 +195,16 @@ static void mouse_func ( int button, int state, int x, int y )
 	mouse_down[button] = state == GLUT_DOWN;
 }
 
-static void motion_func ( int x, int y )
+static void motion_func( int x, int y )
 {
 	mx = x;
 	my = y;
 }
 
-static void reshape_func ( int width, int height )
+static void reshape_func( int width, int height )
 {
-	glutSetWindow ( win_id );
-	glutReshapeWindow ( width, height );
+	glutSetWindow( win_id );
+	glutReshapeWindow( width, height );
 
 	win_x = width;
 	win_y = height;
@@ -233,62 +233,62 @@ static void idle_func()
             DIFFUSION_RATE,
             TIME_DELTA );
 
-	glutSetWindow ( win_id );
-	glutPostRedisplay ();
+	glutSetWindow( win_id );
+	glutPostRedisplay();
 }
 
 //==================================================================
 static void display_func()
 {
-	pre_display ();
+	pre_display();
 
-		if ( DISPLAY_VEL ) draw_velocity ();
-		else		       draw_density ();
+		if ( DISPLAY_VEL ) draw_velocity();
+		else		       draw_density();
 
 	glutSwapBuffers();
 }
 
 
 //==================================================================
-static void open_glut_window ( void )
+static void open_glut_window( void )
 {
-	glutInitDisplayMode ( GLUT_RGBA | GLUT_DOUBLE );
+	glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
 
-	glutInitWindowPosition ( 200, 200 );
-	glutInitWindowSize ( win_x, win_y );
-	win_id = glutCreateWindow ( "Fluid Test" );
+	glutInitWindowPosition( 200, 200 );
+	glutInitWindowSize( win_x, win_y );
+	win_id = glutCreateWindow( "Fluid Test" );
 
-	glClearColor ( 0.0f, 0.0f, 0.0f, 1.0f );
-	glClear ( GL_COLOR_BUFFER_BIT );
-	glutSwapBuffers ();
-	glClear ( GL_COLOR_BUFFER_BIT );
-	glutSwapBuffers ();
+	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
+	glClear( GL_COLOR_BUFFER_BIT );
+	glutSwapBuffers();
+	glClear( GL_COLOR_BUFFER_BIT );
+	glutSwapBuffers();
 
-	pre_display ();
+	pre_display();
 
-	glutKeyboardFunc ( key_func );
-	glutMouseFunc ( mouse_func );
-	glutMotionFunc ( motion_func );
-	glutReshapeFunc ( reshape_func );
-	glutIdleFunc ( idle_func );
-	glutDisplayFunc ( display_func );
+	glutKeyboardFunc( key_func );
+	glutMouseFunc( mouse_func );
+	glutMotionFunc( motion_func );
+	glutReshapeFunc( reshape_func );
+	glutIdleFunc( idle_func );
+	glutDisplayFunc( display_func );
 }
 
 //==================================================================
-int main ( int argc, char ** argv )
+int main( int argc, char ** argv )
 {
-	glutInit ( &argc, argv );
+	glutInit( &argc, argv );
 
 	if ( argc != 1 && argc != 6 ) {
-		fprintf ( stderr, "usage : %s N dt diff visc force source\n", argv[0] );
-		fprintf ( stderr, "where:\n" );\
-		fprintf ( stderr, "\t N      : grid resolution\n" );
-		fprintf ( stderr, "\t dt     : time step\n" );
-		fprintf ( stderr, "\t diff   : diffusion rate of the density\n" );
-		fprintf ( stderr, "\t visc   : viscosity of the fluid\n" );
-		fprintf ( stderr, "\t force  : scales the mouse movement that generate a force\n" );
-		fprintf ( stderr, "\t source : amount of density that will be deposited\n" );
-		exit ( 1 );
+		fprintf( stderr, "usage : %s N dt diff visc force source\n", argv[0] );
+		fprintf( stderr, "where:\n" );\
+		fprintf( stderr, "\t N      : grid resolution\n" );
+		fprintf( stderr, "\t dt     : time step\n" );
+		fprintf( stderr, "\t diff   : diffusion rate of the density\n" );
+		fprintf( stderr, "\t visc   : viscosity of the fluid\n" );
+		fprintf( stderr, "\t force  : scales the mouse movement that generate a force\n" );
+		fprintf( stderr, "\t source : amount of density that will be deposited\n" );
+		exit( 1 );
 	}
 
 	if ( argc == 1 ) {
@@ -297,7 +297,7 @@ int main ( int argc, char ** argv )
 		DIFFUSION_RATE = 0.0f;
 		VISCOSITY = 0.0f;
 		SOURCE_DENSITY = 100.0f;
-		fprintf ( stderr, "Using defaults : N=%d dt=%g diff=%g visc=%g force = %g source=%g\n",
+		fprintf( stderr, "Using defaults : N=%d dt=%g diff=%g visc=%g force = %g source=%g\n",
 			N, TIME_DELTA, DIFFUSION_RATE, VISCOSITY, FORCE, SOURCE_DENSITY );
 	} else {
 		//N = atoi(argv[1]);
@@ -308,22 +308,22 @@ int main ( int argc, char ** argv )
 		SOURCE_DENSITY = atof(argv[6]);
 	}
 
-	printf ( "\n\nHow to use this demo:\n\n" );
-	printf ( "\t Add densities with the right mouse button\n" );
-	printf ( "\t Add velocities with the left mouse button and dragging the mouse\n" );
-	printf ( "\t Toggle density/velocity display with the 'v' key\n" );
-	printf ( "\t Clear the simulation by pressing the 'c' key\n" );
-	printf ( "\t Quit by pressing the 'q' key\n" );
+	printf( "\n\nHow to use this demo:\n\n" );
+	printf( "\t Add densities with the right mouse button\n" );
+	printf( "\t Add velocities with the left mouse button and dragging the mouse\n" );
+	printf( "\t Toggle density/velocity display with the 'v' key\n" );
+	printf( "\t Clear the simulation by pressing the 'c' key\n" );
+	printf( "\t Quit by pressing the 'q' key\n" );
 
     gsSimData.Alloc( (N+2)*(N+2) );
     gsSimData.Clear();
 
 	win_x = 512;
 	win_y = 512;
-	open_glut_window ();
+	open_glut_window();
 
-	glutMainLoop ();
+	glutMainLoop();
 
-	exit ( 0 );
+	exit( 0 );
 }
 
