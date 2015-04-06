@@ -19,44 +19,13 @@ static float FORCE = 5.f;
 static float SOURCE_DENSITY = 100;
 static bool  DISPLAY_VEL = false;
 
-//==================================================================
-template <size_t DIMS>
-struct SimData
-{
-    using vec = std::vector<float>;
-
-    vec tmpVel[DIMS];
-    vec tmpDen;
-
-    void Alloc( int n )
-    {
-        for (size_t i=0; i != DIMS; ++i)
-            tmpVel[i].resize( n );
-
-        tmpDen.resize( n );
-    }
-
-    void Clear()
-    {
-        for (size_t i=0; i != DIMS; ++i)
-            fillZero( tmpVel[i] );
-
-        fillZero( tmpDen );
-    }
-
-private:
-    void fillZero( std::vector<float> &v ) { for (auto &x : v) x = 0; }
-};
-
-static SimData<2> gsSimData;
+static std::vector<char> gTmpBuff;
+static FluidSolver<N>    gsSolver;
 
 static int win_id;
 static int win_x, win_y;
 static int mouse_down[3];
 static int omx, omy, mx, my;
-
-//==================================================================
-static FluidSolver<N> gsSolver;
 
 //==================================================================
 static void pre_display()
@@ -162,7 +131,6 @@ static void key_func( unsigned char key, int x, int y )
 	{
 		case 'c':
 		case 'C':
-			gsSimData.Clear();
             gsSolver.Clear();
 			break;
 
@@ -203,20 +171,11 @@ static void reshape_func( int width, int height )
 
 static void idle_func()
 {
-    gsSimData.Clear();
-
 	get_from_UI();
 
-	gsSolver.vel_step(
-            gsSimData.tmpVel[0].data(),
-            gsSimData.tmpVel[1].data(),
-            VISCOSITY,
-            TIME_DELTA );
+	gsSolver.vel_step( gTmpBuff.data(), VISCOSITY, TIME_DELTA );
 
-	gsSolver.dens_step(
-            gsSimData.tmpDen.data(),
-            DIFFUSION_RATE,
-            TIME_DELTA );
+	gsSolver.dens_step( gTmpBuff.data(), DIFFUSION_RATE, TIME_DELTA );
 
 	glutSetWindow( win_id );
 	glutPostRedisplay();
@@ -300,8 +259,8 @@ int main( int argc, char ** argv )
 	printf( "\t Clear the simulation by pressing the 'c' key\n" );
 	printf( "\t Quit by pressing the 'q' key\n" );
 
-    gsSimData.Alloc( (N+2)*(N+2) );
-    gsSimData.Clear();
+    gTmpBuff.resize( gsSolver.GetTempBuffMaxSize() );
+    //for (auto &x : gTmpBuff) x = 0;
 
 	win_x = 512;
 	win_y = 512;
