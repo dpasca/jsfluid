@@ -12,7 +12,7 @@
 #include <vector>
 
 //==================================================================
-template <int N>
+template <int N, bool DO_BOUND>
 class FluidSolver
 {
     static const int DIMS_N = 2;
@@ -21,18 +21,12 @@ class FluidSolver
     std::vector<float> mCurVel[DIMS_N];
     std::vector<float> mCurDen;
 
-    void set_bnd( int b, float *x );
-    void lin_solve( int b, float *x, const float *x0, float a, float c );
-    void diffuse( int b, float *x, const float *x0, float diff, float dt );
-
-    void advect(
-        float *d,
-        const float *d0,
-        const float *u,
-        const float *v,
-        float dt );
-
-    void project( float *u, float *v, float *p, float *div );
+    enum BType
+    {
+        BTYPE_REPEL0, // repel on x
+        BTYPE_REPEL1, // repel on y
+        BTYPE_EXPAND  // spill onto the border
+    };
 
 public:
     FluidSolver()
@@ -79,20 +73,33 @@ public:
     void vel_step( char *pTmpBuff, float visc, float dt );
 
 private:
+    void setBoundary( BType b, float *x );
+    void lin_solve( BType b, float *x, const float *x0, float a, float c );
+    void diffuse( BType b, float *x, const float *x0, float diff, float dt );
+
+    void advect(
+        float *d,
+        const float *d0,
+        const float *u,
+        const float *v,
+        float dt );
+
+    void project( float *u, float *v, float *p, float *div );
+
     static size_t getVelCoordBuffSize() { return (N+2) * (N+2) * sizeof(float); }
     static size_t getDenBuffSize()      { return (N+2) * (N+2) * sizeof(float); }
 };
 
 //==================================================================
-template <int N>
-void FluidSolver<N>::set_bnd( int b, float *x )
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::setBoundary( BType b, float *x )
 {
     for (int i=1; i <= N; ++i)
     {
-        SMP(x, 0  ,   i) = b==1 ? -SMP(x, 1, i) : SMP(x, 1, i);
-        SMP(x, N+1,   i) = b==1 ? -SMP(x, N, i) : SMP(x, N, i);
-        SMP(x, i  ,   0) = b==2 ? -SMP(x, i, 1) : SMP(x, i, 1);
-        SMP(x, i  , N+1) = b==2 ? -SMP(x, i, N) : SMP(x, i, N);
+        SMP(x, 0  ,   i) = b==BTYPE_REPEL0 ? -SMP(x, 1, i) : SMP(x, 1, i);
+        SMP(x, N+1,   i) = b==BTYPE_REPEL0 ? -SMP(x, N, i) : SMP(x, N, i);
+        SMP(x, i  ,   0) = b==BTYPE_REPEL1 ? -SMP(x, i, 1) : SMP(x, i, 1);
+        SMP(x, i  , N+1) = b==BTYPE_REPEL1 ? -SMP(x, i, N) : SMP(x, i, N);
     }
     SMP(x, 0  ,0  ) = 0.5f * (SMP(x, 1, 0  ) + SMP(x, 0  , 1));
     SMP(x, 0  ,N+1) = 0.5f * (SMP(x, 1, N+1) + SMP(x, 0  , N));
@@ -100,8 +107,8 @@ void FluidSolver<N>::set_bnd( int b, float *x )
     SMP(x, N+1,N+1) = 0.5f * (SMP(x, N, N+1) + SMP(x, N+1, N));
 }
 
-template <int N>
-void FluidSolver<N>::lin_solve( int b, float *x, const float *x0, float a, float c )
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::lin_solve( BType b, float *x, const float *x0, float a, float c )
 {
     // Gauss-Seidel relaxation:
     //  http://en.wikipedia.org/wiki/Gauss%E2%80%93Seidel_method
@@ -121,12 +128,12 @@ void FluidSolver<N>::lin_solve( int b, float *x, const float *x0, float a, float
                                   SMP(x , i  , j+1))) * ooc;
             }
         }
-        set_bnd( b, x );
+        if ( DO_BOUND ) setBoundary( b, x );
     }
 }
 
-template <int N>
-void FluidSolver<N>::diffuse( int b, float *x, const float *x0, float diff, float dt )
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::diffuse( BType b, float *x, const float *x0, float diff, float dt )
 {
     float a = dt * diff * N * N;
 
@@ -139,8 +146,8 @@ inline float clamp( float x, float mi, float ma )
     return t > ma ? ma : t;
 }
 
-template <int N>
-void FluidSolver<N>::advect(
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::advect(
         float *d,
         const float *d0,
         const float *u,
@@ -177,8 +184,8 @@ void FluidSolver<N>::advect(
     }
 }
 
-template <int N>
-void FluidSolver<N>::project( float *u, float *v, float *p, float *div )
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::project( float *u, float *v, float *p, float *div )
 {
     const float sca = -0.5f / N;
     for (int i=1; i <= N; ++i)
@@ -192,10 +199,10 @@ void FluidSolver<N>::project( float *u, float *v, float *p, float *div )
             SMP(p  , i, j) = 0;
         }
     }
-    set_bnd( 0, div );
-    set_bnd( 0, p );
+    if ( DO_BOUND ) setBoundary( BTYPE_EXPAND, div );
+    if ( DO_BOUND ) setBoundary( BTYPE_EXPAND, p );
 
-    lin_solve( 0, p, div, 1, 4 );
+    lin_solve( BTYPE_EXPAND, p, div, 1, 4 );
 
     for (int i=1; i <= N; ++i)
     {
@@ -205,27 +212,27 @@ void FluidSolver<N>::project( float *u, float *v, float *p, float *div )
             SMP(v,i,j) -= (0.5f * N) * (SMP(p,i,j+1) - SMP(p,i,j-1));
         }
     }
-    set_bnd( 1, u );
-    set_bnd( 2, v );
+    if ( DO_BOUND ) setBoundary( BTYPE_REPEL0, u );
+    if ( DO_BOUND ) setBoundary( BTYPE_REPEL1, v );
 }
 
-template <int N>
-void FluidSolver<N>::dens_step( char *pTmpBuff, float diff, float dt )
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::dens_step( char *pTmpBuff, float diff, float dt )
 {
     auto *pCurDen = mCurDen.data();
     auto *pTmpDen = (float *)pTmpBuff;
 
-    diffuse( 0, pTmpDen, pCurDen, diff, dt );
+    diffuse( BTYPE_EXPAND, pTmpDen, pCurDen, diff, dt );
 
     const auto *pCurVel0 = mCurVel[0].data();
     const auto *pCurVel1 = mCurVel[1].data();
 
     advect( pCurDen, pTmpDen, pCurVel0, pCurVel1, dt );
-    set_bnd( 0, pCurDen );
+    if ( DO_BOUND ) setBoundary( BTYPE_EXPAND, pCurDen );
 }
 
-template <int N>
-void FluidSolver<N>::vel_step( char *pTmpBuff, float visc, float dt )
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::vel_step( char *pTmpBuff, float visc, float dt )
 {
     auto *pTmpVel0 = (float *)pTmpBuff;
     auto *pTmpVel1 = (float *)(pTmpBuff + getVelCoordBuffSize());
@@ -233,16 +240,16 @@ void FluidSolver<N>::vel_step( char *pTmpBuff, float visc, float dt )
     auto *pCurVel0 = mCurVel[0].data();
     auto *pCurVel1 = mCurVel[1].data();
 
-    diffuse( 1, pTmpVel0, pCurVel0, visc, dt );
-    diffuse( 2, pTmpVel1, pCurVel1, visc, dt );
+    diffuse( BTYPE_REPEL0, pTmpVel0, pCurVel0, visc, dt );
+    diffuse( BTYPE_REPEL1, pTmpVel1, pCurVel1, visc, dt );
 
     project( pTmpVel0, pTmpVel1, pCurVel0, pCurVel1 );
 
     advect( pCurVel0, pTmpVel0, pTmpVel0, pTmpVel1, dt );
-    set_bnd( 1, pCurVel0 );
+    if ( DO_BOUND ) setBoundary( BTYPE_REPEL0, pCurVel0 );
 
     advect( pCurVel1, pTmpVel1, pTmpVel0, pTmpVel1, dt );
-    set_bnd( 2, pCurVel1 );
+    if ( DO_BOUND ) setBoundary( BTYPE_REPEL1, pCurVel1 );
 
     project( pCurVel0, pCurVel1, pTmpVel0, pTmpVel1 );
 }

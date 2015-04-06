@@ -19,8 +19,8 @@ static float FORCE = 5.f;
 static float SOURCE_DENSITY = 100;
 static bool  DISPLAY_VEL = false;
 
-static std::vector<char> gTmpBuff;
-static FluidSolver<N>    gsSolver;
+static std::vector<char>   gTmpBuff;
+static FluidSolver<N,true> gsSolver;
 
 static int win_id;
 static int win_x, win_y;
