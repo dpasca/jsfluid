@@ -25,31 +25,23 @@ struct SimData
 {
     using vec = std::vector<float>;
 
-    vec vel1[DIMS];
-    vec vel0[DIMS];
-    vec dens1;
-    vec dens0;
+    vec tmpVel[DIMS];
+    vec tmpDen;
 
     void Alloc( int n )
     {
         for (size_t i=0; i != DIMS; ++i)
-        {
-            vel1[i].resize( n );
-            vel0[i].resize( n );
-        }
-        dens1.resize( n );
-        dens0.resize( n );
+            tmpVel[i].resize( n );
+
+        tmpDen.resize( n );
     }
 
     void Clear()
     {
         for (size_t i=0; i != DIMS; ++i)
-        {
-            fillZero( vel1[i] );
-            fillZero( vel0[i] );
-        }
-        fillZero( dens1 );
-        fillZero( dens0 );
+            fillZero( tmpVel[i] );
+
+        fillZero( tmpDen );
     }
 
 private:
@@ -97,8 +89,8 @@ static void draw_velocity()
 
 				glVertex2f( x, y );
 				glVertex2f(
-                    x + gsSolver.SMP( gsSimData.vel1[0], i, j ),
-                    y + gsSolver.SMP( gsSimData.vel1[1], i, j ) );
+                    x + gsSolver.SMPVel<0>( i, j ),
+                    y + gsSolver.SMPVel<1>( i, j ) );
 			}
 		}
 
@@ -119,10 +111,10 @@ static void draw_density()
             {
 				float y = (j-0.5f)*h;
 
-				float d00 = gsSolver.SMP( gsSimData.dens1, i  , j   );
-				float d01 = gsSolver.SMP( gsSimData.dens1, i  , j+1 );
-				float d10 = gsSolver.SMP( gsSimData.dens1, i+1, j   );
-				float d11 = gsSolver.SMP( gsSimData.dens1, i+1, j+1 );
+				float d00 = gsSolver.SMPDen( i  , j   );
+				float d01 = gsSolver.SMPDen( i  , j+1 );
+				float d10 = gsSolver.SMPDen( i+1, j   );
+				float d11 = gsSolver.SMPDen( i+1, j+1 );
 
 				glColor3f( d00, d00, d00 ); glVertex2f( x, y );
 				glColor3f( d10, d10, d10 ); glVertex2f( x+h, y );
@@ -135,28 +127,26 @@ static void draw_density()
 }
 
 //==================================================================
-static void get_from_UI( float * d, float * u, float * v )
+static void get_from_UI()
 {
-	int i, j, size = (N+2)*(N+2);
-
-	for ( i=0 ; i<size ; i++ ) {
-		u[i] = v[i] = d[i] = 0.0f;
-	}
-
 	if ( !mouse_down[0] && !mouse_down[2] ) return;
 
-	i = (int)((       mx /(float)win_x)*N+1);
-	j = (int)(((win_y-my)/(float)win_y)*N+1);
+	int i = (int)((       mx /(float)win_x)*N+1);
+	int j = (int)(((win_y-my)/(float)win_y)*N+1);
 
 	if ( i<1 || i>N || j<1 || j>N ) return;
 
-	if ( mouse_down[0] ) {
-		gsSolver.SMP( u, i, j ) = FORCE * (mx-omx);
-		gsSolver.SMP( v, i, j ) = FORCE * (omy-my);
+    const float dt = TIME_DELTA;
+
+	if ( mouse_down[0] )
+    {
+		gsSolver.SMPVel<0>( i, j ) += FORCE * (mx-omx) * dt;
+		gsSolver.SMPVel<1>( i, j ) += FORCE * (omy-my) * dt;
 	}
 
-	if ( mouse_down[2] ) {
-		gsSolver.SMP( d, i, j ) = SOURCE_DENSITY;
+	if ( mouse_down[2] )
+    {
+		gsSolver.SMPDen( i, j ) += SOURCE_DENSITY * dt;
 	}
 
 	omx = mx;
@@ -173,6 +163,7 @@ static void key_func( unsigned char key, int x, int y )
 		case 'c':
 		case 'C':
 			gsSimData.Clear();
+            gsSolver.Clear();
 			break;
 
 		case 'q':
@@ -212,24 +203,18 @@ static void reshape_func( int width, int height )
 
 static void idle_func()
 {
-	get_from_UI(
-            gsSimData.dens0.data(),
-            gsSimData.vel0[0].data(),
-            gsSimData.vel0[1].data() );
+    gsSimData.Clear();
+
+	get_from_UI();
 
 	gsSolver.vel_step(
-            gsSimData.vel1[0].data(),
-            gsSimData.vel1[1].data(),
-            gsSimData.vel0[0].data(),
-            gsSimData.vel0[1].data(),
+            gsSimData.tmpVel[0].data(),
+            gsSimData.tmpVel[1].data(),
             VISCOSITY,
             TIME_DELTA );
 
 	gsSolver.dens_step(
-            gsSimData.dens1.data(),
-            gsSimData.dens0.data(),
-            gsSimData.vel1[0].data(),
-            gsSimData.vel1[1].data(),
+            gsSimData.tmpDen.data(),
             DIFFUSION_RATE,
             TIME_DELTA );
 

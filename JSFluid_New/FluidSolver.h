@@ -15,7 +15,19 @@
 template <int N>
 class FluidSolver
 {
+    std::vector<float> mCurVel[2];
+    std::vector<float> mCurDen;
+
+#if 0
     void add_source( float *x, const float *s, float dt );
+    {
+        const int size = (N+2) *(N+2);
+
+        for (int i=0 ; i < size; ++i)
+            x[i] += dt * s[i];
+    }
+#endif
+
     void set_bnd( int b, float *x );
     void lin_solve( int b, float *x, const float *x0, float a, float c );
     void diffuse( int b, float *x, const float *x0, float diff, float dt );
@@ -30,24 +42,41 @@ class FluidSolver
     void project( float *u, float *v, float *p, float *div );
 
 public:
+    FluidSolver()
+    {
+        const auto size = (N+2) *(N+2);
+
+        mCurVel[0].resize( size );
+        mCurVel[1].resize( size );
+        mCurDen.resize( size );
+
+        Clear();
+    }
+
+    void Clear()
+    {
+        for (auto &x : mCurVel[0]) x = 0;
+        for (auto &x : mCurVel[1]) x = 0;
+        for (auto &x : mCurDen) x = 0;
+    }
+
     static       float &SMP(      float *p, int i, int j) { return p[ i + (N+2) *j ]; }
     static const float &SMP(const float *p, int i, int j) { return p[ i + (N+2) *j ]; }
     static const float &SMP(const std::vector<float> &v, int i, int j) { return v[ i + (N+2) *j ]; }
 
-    void dens_step( float *x, float *x0, float *u, float *v, float diff, float dt );
-    void vel_step( float *u, float *v, float *u0, float *v0, float visc, float dt );
+    template <int DIM_IDX>
+    const float &SMPVel(int i, int j) const { return mCurVel[DIM_IDX][ i + (N+2) *j ]; }
+    template <int DIM_IDX>
+          float &SMPVel(int i, int j)       { return mCurVel[DIM_IDX][ i + (N+2) *j ]; }
+
+    const float &SMPDen(int i, int j) const { return mCurDen[ i + (N+2) *j ]; }
+          float &SMPDen(int i, int j)       { return mCurDen[ i + (N+2) *j ]; }
+
+    void dens_step( float *pTmpDen, float diff, float dt );
+    void vel_step( float *u0, float *v0, float visc, float dt );
 };
 
 //==================================================================
-template <int N>
-void FluidSolver<N>::add_source( float *x, const float *s, float dt )
-{
-    const int size = (N+2) *(N+2);
-
-    for (int i=0 ; i < size; ++i)
-        x[i] += dt * s[i];
-}
-
 template <int N>
 void FluidSolver<N>::set_bnd( int b, float *x )
 {
@@ -171,33 +200,42 @@ void FluidSolver<N>::project( float *u, float *v, float *p, float *div )
 }
 
 template <int N>
-void FluidSolver<N>::dens_step( float *xb, float *xa, float *u, float *v, float diff, float dt )
+void FluidSolver<N>::dens_step( float *pTmpDen, float diff, float dt )
 {
-    add_source( xb, xa, dt );
-    diffuse( 0, xa, xb, diff, dt );
+    auto *pCurDen = mCurDen.data();
 
-    advect( xb, xa, u, v, dt );
-    set_bnd( 0, xb );
+    //add_source( pCurDen, pTmpDen, dt );
+
+    diffuse( 0, pTmpDen, pCurDen, diff, dt );
+
+    const auto *pCurVel0 = mCurVel[0].data();
+    const auto *pCurVel1 = mCurVel[1].data();
+
+    advect( pCurDen, pTmpDen, pCurVel0, pCurVel1, dt );
+    set_bnd( 0, pCurDen );
 }
 
 template <int N>
-void FluidSolver<N>::vel_step( float *u, float *v, float *u0, float *v0, float visc, float dt )
+void FluidSolver<N>::vel_step( float *u0, float *v0, float visc, float dt )
 {
-    add_source( u, u0, dt );
-    add_source( v, v0, dt );
+    auto *pCurVel0 = mCurVel[0].data();
+    auto *pCurVel1 = mCurVel[1].data();
 
-    diffuse( 1, u0, u, visc, dt );
-    diffuse( 2, v0, v, visc, dt );
+    //add_source( pCurVel0, u0, dt );
+    //add_source( pCurVel1, v0, dt );
 
-    project( u0, v0, u, v );
+    diffuse( 1, u0, pCurVel0, visc, dt );
+    diffuse( 2, v0, pCurVel1, visc, dt );
 
-    advect( u, u0, u0, v0, dt );
-    set_bnd( 1, u );
+    project( u0, v0, pCurVel0, pCurVel1 );
 
-    advect( v, v0, u0, v0, dt );
-    set_bnd( 2, v );
+    advect( pCurVel0, u0, u0, v0, dt );
+    set_bnd( 1, pCurVel0 );
 
-    project( u, v, u0, v0 );
+    advect( pCurVel1, v0, u0, v0, dt );
+    set_bnd( 2, pCurVel1 );
+
+    project( pCurVel0, pCurVel1, u0, v0 );
 }
 
 #endif
