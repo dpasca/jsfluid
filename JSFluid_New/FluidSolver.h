@@ -15,18 +15,10 @@
 template <int N>
 class FluidSolver
 {
+    static const int RELAX_ITER_COUNT = 20;
+
     std::vector<float> mCurVel[2];
     std::vector<float> mCurDen;
-
-#if 0
-    void add_source( float *x, const float *s, float dt );
-    {
-        const int size = (N+2) *(N+2);
-
-        for (int i=0 ; i < size; ++i)
-            x[i] += dt * s[i];
-    }
-#endif
 
     void set_bnd( int b, float *x );
     void lin_solve( int b, float *x, const float *x0, float a, float c );
@@ -96,9 +88,12 @@ void FluidSolver<N>::set_bnd( int b, float *x )
 template <int N>
 void FluidSolver<N>::lin_solve( int b, float *x, const float *x0, float a, float c )
 {
+    // Gauss-Seidel relaxation:
+    //  http://en.wikipedia.org/wiki/Gauss%E2%80%93Seidel_method
+
     float ooc = 1.f / c;
 
-    for (int k=0 ; k < 20; ++k)
+    for (int k=0 ; k < RELAX_ITER_COUNT; ++k)
     {
         for (int i=1; i <= N; ++i)
         {
@@ -204,8 +199,6 @@ void FluidSolver<N>::dens_step( float *pTmpDen, float diff, float dt )
 {
     auto *pCurDen = mCurDen.data();
 
-    //add_source( pCurDen, pTmpDen, dt );
-
     diffuse( 0, pTmpDen, pCurDen, diff, dt );
 
     const auto *pCurVel0 = mCurVel[0].data();
@@ -220,9 +213,6 @@ void FluidSolver<N>::vel_step( float *u0, float *v0, float visc, float dt )
 {
     auto *pCurVel0 = mCurVel[0].data();
     auto *pCurVel1 = mCurVel[1].data();
-
-    //add_source( pCurVel0, u0, dt );
-    //add_source( pCurVel1, v0, dt );
 
     diffuse( 1, u0, pCurVel0, visc, dt );
     diffuse( 2, v0, pCurVel1, visc, dt );
