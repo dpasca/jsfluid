@@ -23,7 +23,14 @@ static float DIFFUSION_RATE;
 static float VISCOSITY = 0.f;
 static float FORCE = 5.f;
 static float SOURCE_DENSITY = 100;
-static bool  DISPLAY_VEL = false;
+
+enum DispMode : int {
+    DISPMODE_FLAT,
+    DISPMODE_SMOOTH,
+    DISPMODE_VEL,
+    DISPMODE_N
+};
+static DispMode _dispMode = DISPMODE_FLAT;
 
 static std::vector<char>   _tmpBuff;
 
@@ -99,34 +106,54 @@ static void drawSolverLines(
 static void drawSolverFill(
         const Solver &solv,
         const vec2 &sca,
-        const vec2 &off )
+        const vec2 &off,
+        bool doSmooth )
 {
 	glBegin( GL_QUADS );
 
-    for (int i=0; i <= N; ++i)
+    int n = (doSmooth ? N : N+1);
+
+    for (int i=0; i <= n; ++i)
     {
-        float x = off[0] + sca[0] * (i-0.5f);
+        float x = off[0] + sca[0] * (i-0.0f);
 
-        for (int j=0; j <= N; ++j)
+        for (int j=0; j <= n; ++j)
         {
-            float y = off[1] + sca[1] * (j-0.5f);
+            float y = off[1] + sca[1] * (j-0.0f);
 
-            float d00 = solv.SMPDen( i  , j   );
-            float d01 = solv.SMPDen( i  , j+1 );
-            float d10 = solv.SMPDen( i+1, j   );
-            float d11 = solv.SMPDen( i+1, j+1 );
+            if ( doSmooth )
+            {
+                float d00 = solv.SMPDen( i  , j   );
+                float d01 = solv.SMPDen( i  , j+1 );
+                float d10 = solv.SMPDen( i+1, j   );
+                float d11 = solv.SMPDen( i+1, j+1 );
 
-            float cr = 1;
-            float cg = 1;
-            float cb = 1;
+                glColor3f( d00, d00, d00 ); glVertex2f( x, y );
+                glColor3f( d10, d10, d10 ); glVertex2f( x+sca[0], y );
+                glColor3f( d11, d11, d11 ); glVertex2f( x+sca[0], y+sca[1] );
+                glColor3f( d01, d01, d01 ); glVertex2f( x, y+sca[1] );
+            }
+            else
+            {
+                float d00 = solv.SMPDen( i, j );
 
-            if ( i<=0 || j<=0 ) { cg = 0; cb = 0; }
-            if ( i>=N || j>=N ) { cr = 0; cb = 0; }
+                float cr = 0;
+                float cg = 1;
+                float cb = 0;
 
-            glColor3f( d00 * cr, d00 * cg, d00 * cb ); glVertex2f( x, y );
-            glColor3f( d10 * cr, d10 * cg, d10 * cb ); glVertex2f( x+sca[0], y );
-            glColor3f( d11 * cr, d11 * cg, d11 * cb ); glVertex2f( x+sca[0], y+sca[1] );
-            glColor3f( d01 * cr, d01 * cg, d01 * cb ); glVertex2f( x, y+sca[1] );
+                float ar = 0;
+                float ab = 0;
+
+                if ( i==0 || j==0 ) { /*cg = 0; cb = 0;*/ ar = 0.4f; } else
+                if ( i==n || j==n ) { /*cr = 0; cb = 0;*/ ab = 0.4f; }
+
+                glColor3f( d00 * cr + ar, d00 * cg, d00 * cb + ab );
+
+                glVertex2f( x, y );
+                glVertex2f( x+sca[0], y );
+                glVertex2f( x+sca[0], y+sca[1] );
+                glVertex2f( x, y+sca[1] );
+            }
         }
     }
 
@@ -136,8 +163,8 @@ static void drawSolverFill(
 //==================================================================
 static void draw_velocity()
 {
-    vec2 sca { 1.f / N / GRID_NX,
-               1.f / N / GRID_NY };
+    vec2 sca { 1.f / (N+2) / GRID_NX,
+               1.f / (N+2) / GRID_NY };
 
 	glColor3f( 1.0f, 1.0f, 1.0f );
 
@@ -156,10 +183,10 @@ static void draw_velocity()
 }
 
 //==================================================================
-static void draw_density()
+static void draw_density( bool doSmooth )
 {
-    vec2 sca { 1.f / N / GRID_NX,
-               1.f / N / GRID_NY };
+    vec2 sca { 1.f / (N+2) / GRID_NX,
+               1.f / (N+2) / GRID_NY };
 
     glEnable( GL_BLEND );
     glBlendFunc( GL_ONE, GL_ONE );
@@ -168,11 +195,14 @@ static void draw_density()
     {
         for (int j=0; j != GRID_NX; ++j)
         {
+            //if ( i!=1 || j!=1 ) continue;
+
             drawSolverFill(
                 _solvers[i][j],
                 sca,
                 {(float)j/GRID_NX,
-                 (float)i/GRID_NY} );
+                 (float)i/GRID_NY},
+                doSmooth );
         }
     }
 
@@ -206,10 +236,11 @@ static void get_from_UI()
 
     auto &solv = _solvers[cell_IY][cell_IX];
 
-    int samp_IX = (int)((mouseX_WS * GRID_NX - cell_IX) * (N+1));
-    int samp_IY = (int)((mouseY_WS * GRID_NY - cell_IY) * (N+1));
+    int samp_IX = (int)((mouseX_WS * GRID_NX - cell_IX) * (N+2));
+    int samp_IY = (int)((mouseY_WS * GRID_NY - cell_IY) * (N+2));
 
-    if ( samp_IX <= 0 || samp_IX >= N || samp_IY <= 0 || samp_IY >= N )
+    // don't apply to the borders
+    if ( samp_IX < 1 || samp_IX > N || samp_IY < 1 || samp_IY > N )
     {
         _env.omx = _env.mx;
         _env.omy = _env.my;
@@ -250,7 +281,9 @@ static void key_func( unsigned char key, int x, int y )
 
 		case 'v':
 		case 'V':
-			DISPLAY_VEL = !DISPLAY_VEL;
+            _dispMode = (DispMode)((int)_dispMode + 1);
+            if ( _dispMode == DISPMODE_N )
+                _dispMode = (DispMode)0;
 			break;
 	}
 }
@@ -300,14 +333,18 @@ static void idle_func()
 //==================================================================
 static void display_func()
 {
-	pre_display();
+    pre_display();
 
-		if ( DISPLAY_VEL ) draw_velocity();
-		else		       draw_density();
+    switch ( _dispMode )
+    {
+    case DISPMODE_FLAT:   draw_density( false ); break;
+    case DISPMODE_SMOOTH: draw_density( true ); break;
+    case DISPMODE_VEL:    draw_velocity(); break;
+    default: break;
+    }
 
-	glutSwapBuffers();
+    glutSwapBuffers();
 }
-
 
 //==================================================================
 static void open_glut_window( void )
