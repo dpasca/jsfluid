@@ -8,10 +8,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <array>
 #include <GL/glut.h>
 #include "FluidSolver.h"
 
-static const int N = 64;
+using vec2 = std::array<float,2>;
+
+template <typename T, int ROWS, int COLS>
+using mtxNM = std::array< std::array<T,COLS>, ROWS>;
+
+static const int N = 32;
 static float TIME_DELTA = 0.1f;
 static float DIFFUSION_RATE;
 static float VISCOSITY = 0.f;
@@ -20,7 +26,12 @@ static float SOURCE_DENSITY = 100;
 static bool  DISPLAY_VEL = false;
 
 static std::vector<char>   _tmpBuff;
-static FluidSolver<N,true> _solver;
+
+using Solver = FluidSolver<N,false>;
+
+static const int GRID_NX = 2;
+static const int GRID_NY = 2;
+static mtxNM<Solver,GRID_NY,GRID_NY> _solvers;
 
 //==================================================================
 struct Env
@@ -33,6 +44,7 @@ struct Env
     int omy = 0;
     int mx  = 0;
     int my  = 0;
+    int modifiers = 0;
 
     Env()
     {
@@ -47,92 +59,176 @@ static void pre_display()
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity();
 	gluOrtho2D( 0.0, 1.0, 0.0, 1.0 );
+	glMatrixMode( GL_MODELVIEW );
+
 	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 	glClear( GL_COLOR_BUFFER_BIT );
 }
 
 //==================================================================
-static void draw_velocity()
+static void drawSolverLines(
+        const Solver &solv,
+        const vec2 &sca,
+        const vec2 &off,
+        float vsca )
 {
-	float h = 1.0f/N;
-
-	glColor3f( 1.0f, 1.0f, 1.0f );
 	glLineWidth( 1.0f );
 
 	glBegin( GL_LINES );
 
-		for (int i=1 ; i<=N ; i++ )
+    for (int i=1; i <= N ; ++i)
+    {
+        float x = off[0] + sca[0] * (i-0.5f);
+
+        for (int j=1; j <= N ; ++j)
         {
-			float x = (i-0.5f)*h;
+            float y = off[1] + sca[1] * (j-0.5f);
 
-			for (int j=1 ; j<=N ; j++ )
-            {
-				float y = (j-0.5f)*h;
+            glVertex2f( x, y );
 
-				glVertex2f( x, y );
-				glVertex2f(
-                    x + _solver.SMPVel<0>( i, j ),
-                    y + _solver.SMPVel<1>( i, j ) );
-			}
-		}
+            glVertex2f(
+                x + vsca * solv.SMPVel<0>( i, j ),
+                y + vsca * solv.SMPVel<1>( i, j ) );
+        }
+    }
 
 	glEnd();
+}
+
+//==================================================================
+static void drawSolverFill(
+        const Solver &solv,
+        const vec2 &sca,
+        const vec2 &off )
+{
+	glBegin( GL_QUADS );
+
+    for (int i=0; i <= N; ++i)
+    {
+        float x = off[0] + sca[0] * (i-0.5f);
+
+        for (int j=0; j <= N; ++j)
+        {
+            float y = off[1] + sca[1] * (j-0.5f);
+
+            float d00 = solv.SMPDen( i  , j   );
+            float d01 = solv.SMPDen( i  , j+1 );
+            float d10 = solv.SMPDen( i+1, j   );
+            float d11 = solv.SMPDen( i+1, j+1 );
+
+            float cr = 1;
+            float cg = 1;
+            float cb = 1;
+
+            if ( i<=0 || j<=0 ) { cg = 0; cb = 0; }
+            if ( i>=N || j>=N ) { cr = 0; cb = 0; }
+
+            glColor3f( d00 * cr, d00 * cg, d00 * cb ); glVertex2f( x, y );
+            glColor3f( d10 * cr, d10 * cg, d10 * cb ); glVertex2f( x+sca[0], y );
+            glColor3f( d11 * cr, d11 * cg, d11 * cb ); glVertex2f( x+sca[0], y+sca[1] );
+            glColor3f( d01 * cr, d01 * cg, d01 * cb ); glVertex2f( x, y+sca[1] );
+        }
+    }
+
+	glEnd();
+}
+
+//==================================================================
+static void draw_velocity()
+{
+    vec2 sca { 1.f / N / GRID_NX,
+               1.f / N / GRID_NY };
+
+	glColor3f( 1.0f, 1.0f, 1.0f );
+
+    for (int i=0; i != GRID_NY; ++i)
+    {
+        for (int j=0; j != GRID_NX; ++j)
+        {
+            drawSolverLines(
+                _solvers[i][j],
+                sca,
+                {(float)j/GRID_NX,
+                 (float)i/GRID_NY},
+                1.f );
+        }
+    }
 }
 
 //==================================================================
 static void draw_density()
 {
-	float h = 1.0f/N;
+    vec2 sca { 1.f / N / GRID_NX,
+               1.f / N / GRID_NY };
 
-	glBegin( GL_QUADS );
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_ONE, GL_ONE );
 
-		for (int i=0 ; i<=N ; i++ )
+    for (int i=0; i != GRID_NY; ++i)
+    {
+        for (int j=0; j != GRID_NX; ++j)
         {
-			float x = (i-0.5f)*h;
-			for (int j=0 ; j<=N ; j++ )
-            {
-				float y = (j-0.5f)*h;
+            drawSolverFill(
+                _solvers[i][j],
+                sca,
+                {(float)j/GRID_NX,
+                 (float)i/GRID_NY} );
+        }
+    }
 
-				float d00 = _solver.SMPDen( i  , j   );
-				float d01 = _solver.SMPDen( i  , j+1 );
-				float d10 = _solver.SMPDen( i+1, j   );
-				float d11 = _solver.SMPDen( i+1, j+1 );
-
-				glColor3f( d00, d00, d00 ); glVertex2f( x, y );
-				glColor3f( d10, d10, d10 ); glVertex2f( x+h, y );
-				glColor3f( d11, d11, d11 ); glVertex2f( x+h, y+h );
-				glColor3f( d01, d01, d01 ); glVertex2f( x, y+h );
-			}
-		}
-
-	glEnd();
+    glDisable( GL_BLEND );
 }
 
 //==================================================================
 static void get_from_UI()
 {
-	if ( !_env.mouse_down[0] && !_env.mouse_down[2] ) return;
-
-	int i = (int)((            _env.mx /(float)_env.win_x)*N+1);
-	int j = (int)(((_env.win_y-_env.my)/(float)_env.win_y)*N+1);
-
-	if ( i<1 || i>N || j<1 || j>N ) return;
+	if ( !_env.mouse_down[0] ) return;
 
     const float dt = TIME_DELTA;
 
-	if ( _env.mouse_down[0] )
-    {
-		_solver.SMPVel<0>( i, j ) += FORCE * (_env.mx  - _env.omx) * dt;
-		_solver.SMPVel<1>( i, j ) += FORCE * (_env.omy - _env.my) * dt;
-	}
+	float mouseX_WS = (             _env.mx) / (float)_env.win_x;
+	float mouseY_WS = (_env.win_y - _env.my) / (float)_env.win_y;
 
-	if ( _env.mouse_down[2] )
-    {
-		_solver.SMPDen( i, j ) += SOURCE_DENSITY * dt;
-	}
+    float cellW_WS = 1.f / GRID_NX;
+    float cellH_WS = 1.f / GRID_NY;
 
-	_env.omx = _env.mx;
-	_env.omy = _env.my;
+    if ( mouseX_WS < 0 || mouseX_WS > 1.f || mouseY_WS < 0 || mouseY_WS > 1.f )
+    {
+        _env.omx = _env.mx;
+        _env.omy = _env.my;
+        return;
+    }
+
+    int cell_X = GRID_NX * (mouseX_WS - 0.f);
+    int cell_Y = GRID_NY * (mouseY_WS - 0.f);
+    int cell_IX = (int)cell_X;
+    int cell_IY = (int)cell_Y;
+
+    auto &solv = _solvers[cell_IY][cell_IX];
+
+    int samp_IX = (int)((mouseX_WS * GRID_NX - cell_IX) * (N+1));
+    int samp_IY = (int)((mouseY_WS * GRID_NY - cell_IY) * (N+1));
+
+    if ( samp_IX <= 0 || samp_IX >= N || samp_IY <= 0 || samp_IY >= N )
+    {
+        _env.omx = _env.mx;
+        _env.omy = _env.my;
+        return;
+    }
+
+    // draw density if CTRL is pressed, otherwise do velocity
+    if ( !!(_env.modifiers & GLUT_ACTIVE_CTRL) )
+    {
+        solv.SMPDen( samp_IX, samp_IY ) += SOURCE_DENSITY * dt;
+    }
+    else
+    {
+        solv.SMPVel<0>( samp_IX, samp_IY ) += FORCE * (_env.mx  - _env.omx) * dt;
+        solv.SMPVel<1>( samp_IX, samp_IY ) += FORCE * (_env.omy - _env.my) * dt;
+    }
+
+    _env.omx = _env.mx;
+    _env.omy = _env.my;
 }
 
 //==================================================================
@@ -142,7 +238,9 @@ static void key_func( unsigned char key, int x, int y )
 	{
 		case 'c':
 		case 'C':
-            _solver.Clear();
+            for (int i=0; i != GRID_NY; ++i)
+                for (int j=0; j != GRID_NX; ++j)
+                    _solvers[i][j].Clear();
 			break;
 
 		case 'q':
@@ -163,6 +261,8 @@ static void mouse_func( int button, int state, int x, int y )
 	_env.omx = _env.my = y;
 
 	_env.mouse_down[button] = (state == GLUT_DOWN);
+
+    _env.modifiers = glutGetModifiers();
 }
 
 static void motion_func( int x, int y )
@@ -184,9 +284,14 @@ static void idle_func()
 {
 	get_from_UI();
 
-	_solver.vel_step( _tmpBuff.data(), VISCOSITY, TIME_DELTA );
-
-	_solver.dens_step( _tmpBuff.data(), DIFFUSION_RATE, TIME_DELTA );
+    for (int i=0; i != GRID_NY; ++i)
+    {
+        for (int j=0; j != GRID_NX; ++j)
+        {
+        	_solvers[i][j].vel_step( _tmpBuff.data(), VISCOSITY, TIME_DELTA );
+        	_solvers[i][j].dens_step( _tmpBuff.data(), DIFFUSION_RATE, TIME_DELTA );
+        }
+    }
 
 	glutSetWindow( _env.win_id );
 	glutPostRedisplay();
@@ -270,7 +375,7 @@ int main( int argc, char ** argv )
 	printf( "\t Clear the simulation by pressing the 'c' key\n" );
 	printf( "\t Quit by pressing the 'q' key\n" );
 
-    _tmpBuff.resize( _solver.GetTempBuffMaxSize() );
+    _tmpBuff.resize( _solvers[0][0].GetTempBuffMaxSize() );
     //for (auto &x : _tmpBuff) x = 0;
 
 	_env.win_x = 512;
