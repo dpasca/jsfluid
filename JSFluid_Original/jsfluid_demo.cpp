@@ -231,7 +231,7 @@ static void key_func ( unsigned char key, int x, int y )
 static void mouse_func ( int button, int state, int x, int y )
 {
 	omx = mx = x;
-	omx = my = y;
+	omy = my = y;
 
 	mouse_down[button] = state == GLUT_DOWN;
 }

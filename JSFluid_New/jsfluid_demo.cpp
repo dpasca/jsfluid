@@ -291,7 +291,7 @@ static void key_func( unsigned char key, int x, int y )
 static void mouse_func( int button, int state, int x, int y )
 {
 	_env.omx = _env.mx = x;
-	_env.omx = _env.my = y;
+	_env.omy = _env.my = y;
 
 	_env.mouse_down[button] = (state == GLUT_DOWN);
 
