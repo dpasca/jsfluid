@@ -17,7 +17,7 @@ using vec2 = std::array<float,2>;
 template <typename T, int ROWS, int COLS>
 using mtxNM = std::array< std::array<T,COLS>, ROWS>;
 
-static const int N = 32;
+static const int N = 64;
 static float TIME_DELTA = 0.1f;
 static float DIFFUSION_RATE;
 static float VISCOSITY = 0.f;
@@ -30,14 +30,14 @@ enum DispMode : int {
     DISPMODE_VEL,
     DISPMODE_N
 };
-static DispMode _dispMode = DISPMODE_FLAT;
+static DispMode _dispMode = DISPMODE_SMOOTH;
 
 static std::vector<char>   _tmpBuff;
 
 using Solver = FluidSolver<N,false>;
 
-static const int GRID_NX = 2;
-static const int GRID_NY = 2;
+static const int GRID_NX = 1;
+static const int GRID_NY = 1;
 static mtxNM<Solver,GRID_NY,GRID_NY> _solvers;
 
 //==================================================================
