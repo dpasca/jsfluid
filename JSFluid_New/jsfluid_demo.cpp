@@ -22,7 +22,7 @@ static float TIME_DELTA = 0.1f;
 static float DIFFUSION_RATE;
 static float VISCOSITY = 0.f;
 static float FORCE = 5.f;
-static float SOURCE_DENSITY = 100;
+static float SOURCE_DENSITY = N;
 
 enum DispMode : int {
     DISPMODE_FLAT,
@@ -254,8 +254,11 @@ static void get_from_UI()
     }
     else
     {
-        solv.SMPVel<0>( samp_IX, samp_IY ) += FORCE * (_env.mx  - _env.omx) * dt;
-        solv.SMPVel<1>( samp_IX, samp_IY ) += FORCE * (_env.omy - _env.my) * dt;
+        vec2 vel { (float)_env.mx  - _env.omx,
+                   (float)_env.omy - _env.my };
+
+        solv.SMPVel<0>( samp_IX, samp_IY ) += FORCE * vel[0] * dt;
+        solv.SMPVel<1>( samp_IX, samp_IY ) += FORCE * vel[1] * dt;
     }
 
     _env.omx = _env.mx;
