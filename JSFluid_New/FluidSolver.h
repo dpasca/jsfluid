@@ -73,6 +73,7 @@ public:
     void vel_step( char *pTmpBuff, float visc, float dt );
 
 private:
+    static void clearPadding( float *x );
     void setBoundary( BType b, float *x );
     void lin_solve( BType b, float *x, const float *x0, float a, float c );
     void diffuse( BType b, float *x, const float *x0, float diff, float dt );
@@ -222,6 +223,7 @@ void FluidSolver<N,DO_BOUND>::dens_step( char *pTmpBuff, float diff, float dt )
     auto *pCurDen = mCurDen.data();
     auto *pTmpDen = (float *)pTmpBuff;
 
+    clearPadding( pTmpDen );
     diffuse( BTYPE_EXPAND, pTmpDen, pCurDen, diff, dt );
 
     const auto *pCurVel0 = mCurVel[0].data();
@@ -229,6 +231,18 @@ void FluidSolver<N,DO_BOUND>::dens_step( char *pTmpBuff, float diff, float dt )
 
     advect( pCurDen, pTmpDen, pCurVel0, pCurVel1, dt );
     if ( DO_BOUND ) setBoundary( BTYPE_EXPAND, pCurDen );
+}
+
+template <int N, bool DO_BOUND>
+void FluidSolver<N,DO_BOUND>::clearPadding( float *x )
+{
+    for (int i=0; i <= (N+1); ++i)
+    {
+        SMP(x, i  , 0  ) = 0;
+        SMP(x, i  , N+1) = 0;
+        SMP(x, 0  , i  ) = 0;
+        SMP(x, N+1, i  ) = 0;
+    }
 }
 
 template <int N, bool DO_BOUND>
@@ -240,6 +254,8 @@ void FluidSolver<N,DO_BOUND>::vel_step( char *pTmpBuff, float visc, float dt )
     auto *pCurVel0 = mCurVel[0].data();
     auto *pCurVel1 = mCurVel[1].data();
 
+    clearPadding( pTmpVel0 );
+    clearPadding( pTmpVel1 );
     diffuse( BTYPE_REPEL0, pTmpVel0, pCurVel0, visc, dt );
     diffuse( BTYPE_REPEL1, pTmpVel1, pCurVel1, visc, dt );
 
