@@ -12,6 +12,8 @@
 #include <GL/glut.h>
 #include "FluidSolver.h"
 
+#define c_auto  const auto
+
 using vec2 = std::array<float,2>;
 
 template <typename T, int ROWS, int COLS>
@@ -46,17 +48,12 @@ struct Env
     int win_id = 0;
     int win_x = 0;
     int win_y = 0;
-    int mouse_down[3];
+    int mouse_down[3] {};
     int omx = 0;
     int omy = 0;
     int mx  = 0;
     int my  = 0;
     int modifiers = 0;
-
-    Env()
-    {
-        for (auto &x : mouse_down) x = 0;
-    }
 } _env;
 
 //==================================================================
@@ -123,10 +120,10 @@ static void drawSolverFill(
 
             if ( doSmooth )
             {
-                float d00 = solv.SMPDen( i  , j   );
-                float d01 = solv.SMPDen( i  , j+1 );
-                float d10 = solv.SMPDen( i+1, j   );
-                float d11 = solv.SMPDen( i+1, j+1 );
+                c_auto d00 = solv.SMPDen( i  , j   );
+                c_auto d01 = solv.SMPDen( i  , j+1 );
+                c_auto d10 = solv.SMPDen( i+1, j   );
+                c_auto d11 = solv.SMPDen( i+1, j+1 );
 
                 glColor3f( d00, d00, d00 ); glVertex2f( x, y );
                 glColor3f( d10, d10, d10 ); glVertex2f( x+sca[0], y );
@@ -135,14 +132,14 @@ static void drawSolverFill(
             }
             else
             {
-                float d00 = solv.SMPDen( i, j );
+                c_auto d00 = solv.SMPDen( i, j );
 
-                float cr = 0;
-                float cg = 1;
-                float cb = 0;
+                c_auto cr = 0;
+                c_auto cg = 1;
+                c_auto cb = 0;
 
-                float ar = 0;
-                float ab = 0;
+                auto ar = 0;
+                auto ab = 0;
 
                 if ( i==0 || j==0 ) { /*cg = 0; cb = 0;*/ ar = 0.4f; } else
                 if ( i==n || j==n ) { /*cr = 0; cb = 0;*/ ab = 0.4f; }
@@ -212,15 +209,17 @@ static void draw_density( bool doSmooth )
 //==================================================================
 static void get_from_UI()
 {
-	if ( !_env.mouse_down[0] ) return;
+	if ( !_env.mouse_down[GLUT_LEFT_BUTTON] &&
+         !_env.mouse_down[GLUT_RIGHT_BUTTON] )
+        return;
 
     const float dt = TIME_DELTA;
 
-	float mouseX_WS = (             _env.mx) / (float)_env.win_x;
-	float mouseY_WS = (_env.win_y - _env.my) / (float)_env.win_y;
+	c_auto mouseX_WS = (             _env.mx) / (float)_env.win_x;
+	c_auto mouseY_WS = (_env.win_y - _env.my) / (float)_env.win_y;
 
-    float cellW_WS = 1.f / GRID_NX;
-    float cellH_WS = 1.f / GRID_NY;
+    c_auto cellW_WS = 1.f / GRID_NX;
+    c_auto cellH_WS = 1.f / GRID_NY;
 
     if ( mouseX_WS < 0 || mouseX_WS > 1.f || mouseY_WS < 0 || mouseY_WS > 1.f )
     {
@@ -229,15 +228,15 @@ static void get_from_UI()
         return;
     }
 
-    int cell_X = GRID_NX * (mouseX_WS - 0.f);
-    int cell_Y = GRID_NY * (mouseY_WS - 0.f);
-    int cell_IX = (int)cell_X;
-    int cell_IY = (int)cell_Y;
+    c_auto cell_X = GRID_NX * (mouseX_WS - 0.f);
+    c_auto cell_Y = GRID_NY * (mouseY_WS - 0.f);
+    c_auto cell_IX = (int)cell_X;
+    c_auto cell_IY = (int)cell_Y;
 
     auto &solv = _solvers[cell_IY][cell_IX];
 
-    int samp_IX = (int)((mouseX_WS * GRID_NX - cell_IX) * (N+2));
-    int samp_IY = (int)((mouseY_WS * GRID_NY - cell_IY) * (N+2));
+    c_auto samp_IX = (int)((mouseX_WS * GRID_NX - cell_IX) * (N+2));
+    c_auto samp_IY = (int)((mouseY_WS * GRID_NY - cell_IY) * (N+2));
 
     // don't apply to the borders
     if ( samp_IX < 1 || samp_IX > N || samp_IY < 1 || samp_IY > N )
@@ -247,8 +246,8 @@ static void get_from_UI()
         return;
     }
 
-    // draw density if CTRL is pressed, otherwise do velocity
-    if ( !!(_env.modifiers & GLUT_ACTIVE_CTRL) )
+    // draw density if CTRL is pressed or it's right button, otherwise do velocity
+    if ( !!(_env.modifiers & GLUT_ACTIVE_CTRL) || _env.mouse_down[GLUT_RIGHT_BUTTON] )
     {
         solv.SMPDen( samp_IX, samp_IY ) += SOURCE_DENSITY * dt;
     }
@@ -361,8 +360,6 @@ static void open_glut_window( void )
 	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 	glClear( GL_COLOR_BUFFER_BIT );
 	glutSwapBuffers();
-	glClear( GL_COLOR_BUFFER_BIT );
-	glutSwapBuffers();
 
 	pre_display();
 
@@ -409,14 +406,13 @@ int main( int argc, char ** argv )
 	}
 
 	printf( "\n\nHow to use this demo:\n\n" );
-	printf( "\t Add densities with the right mouse button\n" );
-	printf( "\t Add velocities with the left mouse button and dragging the mouse\n" );
+	printf( "\t Add densities: mouse right-button or left-button + CTRL\n" );
+	printf( "\t Add velocities: move the mouse while pressing left-button\n" );
 	printf( "\t Toggle density/velocity display with the 'v' key\n" );
 	printf( "\t Clear the simulation by pressing the 'c' key\n" );
 	printf( "\t Quit by pressing the 'q' key\n" );
 
     _tmpBuff.resize( _solvers[0][0].GetTempBuffMaxSize() );
-    //for (auto &x : _tmpBuff) x = 0;
 
 	_env.win_x = 512;
 	_env.win_y = 512;

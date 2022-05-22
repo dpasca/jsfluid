@@ -16,4 +16,5 @@ tags
 .ctags
 *~
 .clang_complete
+.vs/
 
