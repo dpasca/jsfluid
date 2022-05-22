@@ -1,6 +1,6 @@
 # JSFluid
 
-<img src="Docs/fluid_test_sshot_01.jpg" width="640">
+<img src="Docs/fluid_test_sshot_01.jpg" width="400">
 
 |  |  |
 |---|---|
