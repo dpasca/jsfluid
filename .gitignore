@@ -1,20 +1,9 @@
-*.o
-*.swp
-*.pyc
-bin/
-Debug/
-Release/
-xcuserdata/
-*.xccheckout
-*.suo
-*.vcxproj.user
-*.sdf
-*.opensdf
+_build/
+_bin/
 .DS_Store
-/TAGS
-tags
 .ctags
+tags
+TAGS
+ctags.d/
 *~
-.clang_complete
-.vs/
 
