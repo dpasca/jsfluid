@@ -90,13 +90,6 @@ if (EMSCRIPTEN)
 endif()
 
 #==================================================================
-# externals
-include_directories( externals/glut )
-
-if (MSVC)
-    set(GLUT_LIBRARIES ${CMAKE_SOURCE_DIR}/externals/glut/glut32.lib)
-endif()
-
 # opengl
 cmake_policy(SET CMP0072 NEW)
 find_package(OpenGL)
@@ -104,6 +97,18 @@ find_package(OpenGL)
 if (NOT OpenGL_FOUND)
 	message( FATAL_ERROR "OpenGL was not found. Exiting..." )
 endif()
+
+# glut
+include_directories( externals/glut )
+
+if (MSVC)
+    set(GLUT_LIBRARIES ${CMAKE_SOURCE_DIR}/externals/glut/glut32.lib)
+endif()
+
+# glew
+include_directories( externals/glew_base/include )
+add_subdirectory( externals/glew_base )
+add_definitions( -DGLEW_STATIC )
 
 #==================================================================
 # Specify the destination for the build products
