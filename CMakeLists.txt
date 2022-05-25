@@ -105,6 +105,15 @@ if (MSVC)
     set(GLUT_LIBRARIES ${CMAKE_SOURCE_DIR}/externals/glut/glut32.lib)
 endif()
 
+# glfw
+option(GLFW_BUILD_EXAMPLES OFF)
+option(GLFW_BUILD_TESTS OFF)
+option(GLFW_BUILD_DOCS OFF)
+option(GLFW_INSTALL OFF)
+include_directories( externals/glfw/include )
+include_directories( externals/glfw/deps )
+add_subdirectory( externals/glfw )
+
 # glew
 include_directories( externals/glew_base/include )
 add_subdirectory( externals/glew_base )
