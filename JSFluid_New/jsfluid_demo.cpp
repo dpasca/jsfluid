@@ -1,16 +1,21 @@
 //==================================================================
+/// jsfluid_demo.cpp
 ///
-///
-///
-///
+/// Created by Davide Pasca - 2022/05/26
+/// See the file "license.txt" that comes with this project for
+/// copyright info.
 //==================================================================
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
 #include <array>
+#include <GL/glew.h>
 #include <GL/glut.h>
+#include "ImmGL.h"
 #include "FluidSolver.h"
+
+//#define USE_IMMGL
 
 #define c_auto  const auto
 
@@ -41,6 +46,10 @@ using Solver = FluidSolver<N,false>;
 static const int GRID_NX = 1;
 static const int GRID_NY = 1;
 static mtxNM<Solver,GRID_NY,GRID_NY> _solvers;
+
+#ifdef USE_IMMGL
+static ImmGL    *_pIGL;
+#endif
 
 //==================================================================
 struct Env
@@ -76,6 +85,7 @@ static void drawSolverLines(
         const vec2 &off,
         float vsca )
 {
+#ifndef USE_IMMGL
 	glLineWidth( 1.0f );
 
 	glBegin( GL_LINES );
@@ -97,6 +107,28 @@ static void drawSolverLines(
     }
 
 	glEnd();
+#else
+    _pIGL->ResetStates();
+
+    for (int i=1; i <= N ; ++i)
+    {
+        float x = off[0] + sca[0] * (i-0.5f);
+
+        for (int j=1; j <= N ; ++j)
+        {
+            float y = off[1] + sca[1] * (j-0.5f);
+
+            _pIGL->DrawLine(
+                    { x,
+                      y },
+                    { x + vsca * solv.SMPVel<0>( i, j ),
+                      y + vsca * solv.SMPVel<1>( i, j ) },
+                    {1,1,1,1} );
+        }
+    }
+
+    _pIGL->FlushPrims();
+#endif
 }
 
 //==================================================================
@@ -376,6 +408,8 @@ int main( int argc, char ** argv )
 {
 	glutInit( &argc, argv );
 
+    glewInit();
+
 	if ( argc != 1 && argc != 6 ) {
 		fprintf( stderr, "usage : %s N dt diff visc force source\n", argv[0] );
 		fprintf( stderr, "where:\n" );\
@@ -418,6 +452,10 @@ int main( int argc, char ** argv )
 	_env.win_y = 512;
 	open_glut_window();
 
+#ifdef USE_IMMGL
+    ImmGL immGL;
+    _pIGL = &immGL;
+#endif
 	glutMainLoop();
 
 	exit( 0 );
