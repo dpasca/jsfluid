@@ -166,12 +166,12 @@ static void drawSolverFill(
             {
                 c_auto d00 = solv.SMPDen( i, j );
 
-                c_auto cr = 0;
-                c_auto cg = 1;
-                c_auto cb = 0;
+                c_auto cr = 0.f;
+                c_auto cg = 1.f;
+                c_auto cb = 0.f;
 
-                auto ar = 0;
-                auto ab = 0;
+                auto ar = 0.f;
+                auto ab = 0.f;
 
                 if ( i==0 || j==0 ) { /*cg = 0; cb = 0;*/ ar = 0.4f; } else
                 if ( i==n || j==n ) { /*cr = 0; cb = 0;*/ ab = 0.4f; }
@@ -424,19 +424,20 @@ int main( int argc, char ** argv )
 
 	if ( argc == 1 ) {
 		//N = 64;
-		TIME_DELTA = 0.1f;
-		DIFFUSION_RATE = 0.0f;
-		VISCOSITY = 0.0f;
-		SOURCE_DENSITY = 100.0f;
+		TIME_DELTA      = 0.1f;
+		DIFFUSION_RATE  = 0.0f;
+		VISCOSITY       = 0.0f;
+		FORCE           = 5.0f;
+		SOURCE_DENSITY  = 100.0f;
 		fprintf( stderr, "Using defaults : N=%d dt=%g diff=%g visc=%g force = %g source=%g\n",
 			N, TIME_DELTA, DIFFUSION_RATE, VISCOSITY, FORCE, SOURCE_DENSITY );
 	} else {
 		//N = atoi(argv[1]);
-		TIME_DELTA = atof(argv[2]);
-		DIFFUSION_RATE = atof(argv[3]);
-		VISCOSITY = atof(argv[4]);
-		FORCE = atof(argv[5]);
-		SOURCE_DENSITY = atof(argv[6]);
+		TIME_DELTA      = (float)atof(argv[2]);
+		DIFFUSION_RATE  = (float)atof(argv[3]);
+		VISCOSITY       = (float)atof(argv[4]);
+		FORCE           = (float)atof(argv[5]);
+		SOURCE_DENSITY  = (float)atof(argv[6]);
 	}
 
 	printf( "\n\nHow to use this demo:\n\n" );
