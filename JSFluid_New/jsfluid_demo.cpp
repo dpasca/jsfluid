@@ -11,7 +11,7 @@
 #include <vector>
 #include <array>
 #include <GL/glew.h>
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include "ImmGL.h"
 #include "FluidSolver.h"
 
@@ -381,44 +381,42 @@ static void display_func()
 }
 
 //==================================================================
-static void open_glut_window( void )
+static void logErr( const char *fmt, ...)
 {
-	glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
+    char buffer[1024] {};
+    va_list args;
+    va_start( args, fmt );
+    vsnprintf( buffer, 1024, fmt, args );
+    va_end(args );
 
-	glutInitWindowPosition( 200, 200 );
-	glutInitWindowSize( _env.win_x, _env.win_y );
-	_env.win_id = glutCreateWindow( "Fluid Test" );
+    printf( "[ERR] " );
+    puts( buffer );
+}
 
-	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
-	glClear( GL_COLOR_BUFFER_BIT );
-	glutSwapBuffers();
+//==================================================================
+static void logMsg( const char *fmt, ...)
+{
+    char buffer[1024] {};
+    va_list args;
+    va_start( args, fmt );
+    vsnprintf( buffer, 1024, fmt, args );
+    va_end( args );
 
-	pre_display();
-
-	glutKeyboardFunc( key_func );
-	glutMouseFunc( mouse_func );
-	glutMotionFunc( motion_func );
-	glutReshapeFunc( reshape_func );
-	glutIdleFunc( idle_func );
-	glutDisplayFunc( display_func );
+    puts( buffer );
 }
 
 //==================================================================
 int main( int argc, char ** argv )
 {
-	glutInit( &argc, argv );
-
-    glewInit();
-
 	if ( argc != 1 && argc != 6 ) {
-		fprintf( stderr, "usage : %s N dt diff visc force source\n", argv[0] );
-		fprintf( stderr, "where:\n" );\
-		fprintf( stderr, "\t N      : grid resolution\n" );
-		fprintf( stderr, "\t dt     : time step\n" );
-		fprintf( stderr, "\t diff   : diffusion rate of the density\n" );
-		fprintf( stderr, "\t visc   : viscosity of the fluid\n" );
-		fprintf( stderr, "\t force  : scales the mouse movement that generate a force\n" );
-		fprintf( stderr, "\t source : amount of density that will be deposited\n" );
+		logErr( "usage : %s N dt diff visc force source", argv[0] );
+		logErr( "where:" );
+		logErr( "\t N      : grid resolution" );
+		logErr( "\t dt     : time step" );
+		logErr( "\t diff   : diffusion rate of the density" );
+		logErr( "\t visc   : viscosity of the fluid" );
+		logErr( "\t force  : scales the mouse movement that generate a force" );
+		logErr( "\t source : amount of density that will be deposited" );
 		exit( 1 );
 	}
 
@@ -429,7 +427,7 @@ int main( int argc, char ** argv )
 		VISCOSITY       = 0.0f;
 		FORCE           = 5.0f;
 		SOURCE_DENSITY  = 100.0f;
-		fprintf( stderr, "Using defaults : N=%d dt=%g diff=%g visc=%g force = %g source=%g\n",
+		logMsg( "Using defaults : N=%d dt=%g diff=%g visc=%g force = %g source=%g",
 			N, TIME_DELTA, DIFFUSION_RATE, VISCOSITY, FORCE, SOURCE_DENSITY );
 	} else {
 		//N = atoi(argv[1]);
@@ -440,18 +438,41 @@ int main( int argc, char ** argv )
 		SOURCE_DENSITY  = (float)atof(argv[6]);
 	}
 
-	printf( "\n\nHow to use this demo:\n\n" );
-	printf( "\t Add densities: mouse right-button or left-button + CTRL\n" );
-	printf( "\t Add velocities: move the mouse while pressing left-button\n" );
-	printf( "\t Toggle density/velocity display with the 'v' key\n" );
-	printf( "\t Clear the simulation by pressing the 'c' key\n" );
-	printf( "\t Quit by pressing the 'q' key\n" );
+	logMsg( "\n\nHow to use this demo:" );
+	logMsg( "\t Add densities: mouse right-button or left-button + CTRL" );
+	logMsg( "\t Add velocities: move the mouse while pressing left-button" );
+	logMsg( "\t Toggle density/velocity display with the 'v' key" );
+	logMsg( "\t Clear the simulation by pressing the 'c' key" );
+	logMsg( "\t Quit by pressing the 'q' key" );
 
     _tmpBuff.resize( _solvers[0][0].GetTempBuffMaxSize() );
 
 	_env.win_x = 512;
 	_env.win_y = 512;
-	open_glut_window();
+
+	glutInit( &argc, argv );
+
+    glutInitContextVersion( 3, 2 );
+    glutInitContextProfile( GLUT_CORE_PROFILE );
+
+	glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
+	glutInitWindowPosition( 200, 200 );
+	glutInitWindowSize( _env.win_x, _env.win_y );
+	_env.win_id = glutCreateWindow( "Fluid Test" );
+
+	glutKeyboardFunc( key_func );
+	glutMouseFunc( mouse_func );
+	glutMotionFunc( motion_func );
+	glutReshapeFunc( reshape_func );
+	glutIdleFunc( idle_func );
+	glutDisplayFunc( display_func );
+
+    if ( glewInit() )
+    {
+        logMsg( "Failed to initialize GLEW" );
+        exit( 1 );
+    }
+
 
 #ifdef USE_IMMGL
     ImmGL immGL;
