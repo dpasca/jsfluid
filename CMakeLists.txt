@@ -13,7 +13,7 @@ macro(Copy_DLLs_to_RuntimeOut)
     if (MSVC)
         ADD_CUSTOM_COMMAND( TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/externals/glut/glut32.dll
+            ${CMAKE_SOURCE_DIR}/externals/freeglut/bin/freeglut.dll
             ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>)
     endif()
 endmacro()
@@ -98,11 +98,11 @@ if (NOT OpenGL_FOUND)
 	message( FATAL_ERROR "OpenGL was not found. Exiting..." )
 endif()
 
-# glut
-include_directories( externals/glut )
+# freeglut
+include_directories( externals/freeglut/include )
 
 if (MSVC)
-    set(GLUT_LIBRARIES ${CMAKE_SOURCE_DIR}/externals/glut/glut32.lib)
+    set(GLUT_LIBRARIES ${CMAKE_SOURCE_DIR}/externals/freeglut/lib/freeglut.lib)
 endif()
 
 # glfw
@@ -132,7 +132,7 @@ else()
     set(PLATFORM_LINK_LIBS -wWASM=1 -sDISABLE_EXCEPTION_CATCHING=0)
 endif()
 
-# apps
+# New is for 64 bit, Original is for 32 bit (due to glut86)
 add_subdirectory( JSFluid_New )
 add_subdirectory( JSFluid_Original )
 
