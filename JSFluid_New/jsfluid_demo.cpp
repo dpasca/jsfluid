@@ -10,12 +10,11 @@
 #include <stdio.h>
 #include <vector>
 #include <array>
+#include <algorithm>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include "ImmGL.h"
 #include "FluidSolver.h"
-
-//#define USE_IMMGL
 
 #define c_auto  const auto
 
@@ -47,9 +46,7 @@ static const int GRID_NX = 1;
 static const int GRID_NY = 1;
 static mtxNM<Solver,GRID_NY,GRID_NY> _solvers;
 
-#ifdef USE_IMMGL
 static ImmGL    *_pIGL;
-#endif
 
 //==================================================================
 struct Env
@@ -66,69 +63,30 @@ struct Env
 } _env;
 
 //==================================================================
-static void pre_display()
-{
-	glViewport( 0, 0, _env.win_x, _env.win_y );
-	glMatrixMode( GL_PROJECTION );
-	glLoadIdentity();
-	gluOrtho2D( 0.0, 1.0, 0.0, 1.0 );
-	glMatrixMode( GL_MODELVIEW );
-
-	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
-	glClear( GL_COLOR_BUFFER_BIT );
-}
-
-//==================================================================
 static void drawSolverLines(
         const Solver &solv,
         const vec2 &sca,
         const vec2 &off,
         float vsca )
 {
-#ifndef USE_IMMGL
-	glLineWidth( 1.0f );
-
-	glBegin( GL_LINES );
+    c_auto col = IColor4 { 1,1,1,1 };
 
     for (int i=1; i <= N ; ++i)
     {
-        float x = off[0] + sca[0] * (i-0.5f);
+        c_auto x = off[0] + sca[0] * (i-0.5f);
 
         for (int j=1; j <= N ; ++j)
         {
-            float y = off[1] + sca[1] * (j-0.5f);
-
-            glVertex2f( x, y );
-
-            glVertex2f(
-                x + vsca * solv.SMPVel<0>( i, j ),
-                y + vsca * solv.SMPVel<1>( i, j ) );
-        }
-    }
-
-	glEnd();
-#else
-    _pIGL->ResetStates();
-
-    for (int i=1; i <= N ; ++i)
-    {
-        float x = off[0] + sca[0] * (i-0.5f);
-
-        for (int j=1; j <= N ; ++j)
-        {
-            float y = off[1] + sca[1] * (j-0.5f);
+            c_auto y = off[1] + sca[1] * (j-0.5f);
 
             _pIGL->DrawLine(
                     { x,
                       y },
                     { x + vsca * solv.SMPVel<0>( i, j ),
                       y + vsca * solv.SMPVel<1>( i, j ) },
-                    {1,1,1,1} );
+                    col );
         }
     }
-
-    _pIGL->FlushPrims();
-#endif
 }
 
 //==================================================================
@@ -138,29 +96,29 @@ static void drawSolverFill(
         const vec2 &off,
         bool doSmooth )
 {
-	glBegin( GL_QUADS );
-
-    int n = (doSmooth ? N : N+1);
+    c_auto n = (doSmooth ? N : N+1);
 
     for (int i=0; i <= n; ++i)
     {
-        float x = off[0] + sca[0] * (i-0.0f);
+        c_auto x = off[0] + sca[0] * (i-0.0f);
 
         for (int j=0; j <= n; ++j)
         {
-            float y = off[1] + sca[1] * (j-0.0f);
+            c_auto y = off[1] + sca[1] * (j-0.0f);
 
             if ( doSmooth )
             {
-                c_auto d00 = solv.SMPDen( i  , j   );
-                c_auto d01 = solv.SMPDen( i  , j+1 );
-                c_auto d10 = solv.SMPDen( i+1, j   );
-                c_auto d11 = solv.SMPDen( i+1, j+1 );
+                auto mkcol = [&]( c_auto offX, c_auto offY ) -> IColor4
+                {
+                    c_auto val = solv.SMPDen( i + offX, j + offY );
+                    return { val, val, val, 1 };
+                };
 
-                glColor3f( d00, d00, d00 ); glVertex2f( x, y );
-                glColor3f( d10, d10, d10 ); glVertex2f( x+sca[0], y );
-                glColor3f( d11, d11, d11 ); glVertex2f( x+sca[0], y+sca[1] );
-                glColor3f( d01, d01, d01 ); glVertex2f( x, y+sca[1] );
+                // note: colors array order is in zig-zag
+                _pIGL->DrawRectFill( {x, y}, sca, { mkcol( 0, 0 ),
+                                                    mkcol( 1, 0 ),
+                                                    mkcol( 0, 1 ),
+                                                    mkcol( 1, 1 ) });
             }
             else
             {
@@ -176,17 +134,15 @@ static void drawSolverFill(
                 if ( i==0 || j==0 ) { /*cg = 0; cb = 0;*/ ar = 0.4f; } else
                 if ( i==n || j==n ) { /*cr = 0; cb = 0;*/ ab = 0.4f; }
 
-                glColor3f( d00 * cr + ar, d00 * cg, d00 * cb + ab );
+                c_auto col = IColor4{ d00 * cr + ar,
+                                      d00 * cg,
+                                      d00 * cb + ab,
+                                      1.f };
 
-                glVertex2f( x, y );
-                glVertex2f( x+sca[0], y );
-                glVertex2f( x+sca[0], y+sca[1] );
-                glVertex2f( x, y+sca[1] );
+                _pIGL->DrawRectFill( {x, y}, sca, col );
             }
         }
     }
-
-	glEnd();
 }
 
 //==================================================================
@@ -194,8 +150,6 @@ static void draw_velocity()
 {
     vec2 sca { 1.f / (N+2) / GRID_NX,
                1.f / (N+2) / GRID_NY };
-
-	glColor3f( 1.0f, 1.0f, 1.0f );
 
     for (int i=0; i != GRID_NY; ++i)
     {
@@ -217,8 +171,7 @@ static void draw_density( bool doSmooth )
     vec2 sca { 1.f / (N+2) / GRID_NX,
                1.f / (N+2) / GRID_NY };
 
-    glEnable( GL_BLEND );
-    glBlendFunc( GL_ONE, GL_ONE );
+    _pIGL->SetBlendAdd();
 
     for (int i=0; i != GRID_NY; ++i)
     {
@@ -235,7 +188,7 @@ static void draw_density( bool doSmooth )
         }
     }
 
-    glDisable( GL_BLEND );
+    _pIGL->SetBlendNone();
 }
 
 //==================================================================
@@ -262,8 +215,8 @@ static void get_from_UI()
 
     c_auto cell_X = GRID_NX * (mouseX_WS - 0.f);
     c_auto cell_Y = GRID_NY * (mouseY_WS - 0.f);
-    c_auto cell_IX = (int)cell_X;
-    c_auto cell_IY = (int)cell_Y;
+    c_auto cell_IX = std::min( (int)cell_X, GRID_NX-1 );
+    c_auto cell_IY = std::min( (int)cell_Y, GRID_NY-1 );
 
     auto &solv = _solvers[cell_IY][cell_IX];
 
@@ -367,7 +320,18 @@ static void idle_func()
 //==================================================================
 static void display_func()
 {
-    pre_display();
+    // setup viewport and trasnforms
+	glViewport( 0, 0, _env.win_x, _env.win_y );
+	glMatrixMode( GL_PROJECTION );
+	glLoadIdentity();
+	gluOrtho2D( 0.0, 1.0, 0.0, 1.0 );
+	glMatrixMode( GL_MODELVIEW );
+
+	glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
+	glClear( GL_COLOR_BUFFER_BIT );
+
+    // do render
+    _pIGL->ResetStates();
 
     switch ( _dispMode )
     {
@@ -377,6 +341,9 @@ static void display_func()
     default: break;
     }
 
+    _pIGL->FlushPrims();
+
+    // present the rendering buffer
     glutSwapBuffers();
 }
 
@@ -474,10 +441,9 @@ int main( int argc, char ** argv )
     }
 
 
-#ifdef USE_IMMGL
     ImmGL immGL;
     _pIGL = &immGL;
-#endif
+
 	glutMainLoop();
 
 	exit( 0 );

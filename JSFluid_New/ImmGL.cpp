@@ -281,17 +281,41 @@ ImmGL::ImmGL()
 }
 
 //==================================================================
-inline std::array<IFloat3,4> ImmGL::makeRectVtxPos(
-                                const IFloat2 &pos,
-                                const IFloat2 &siz ) const
+void ImmGL::SetBlendNone()
 {
-    return
-    {
-        pos[0]+siz[0]*0, pos[1]+siz[1]*0,
-        pos[0]+siz[0]*1, pos[1]+siz[1]*0,
-        pos[0]+siz[0]*0, pos[1]+siz[1]*1,
-        pos[0]+siz[0]*1, pos[1]+siz[1]*1
-    };
+    if ( mCurBlendMode == BM_NONE )
+        return;
+
+    mCurBlendMode = BM_NONE;
+    FlushPrims();
+
+    glDisable( GL_BLEND );
+}
+
+//==================================================================
+void ImmGL::SetBlendAdd()
+{
+    if ( mCurBlendMode == BM_ADD )
+        return;
+
+    mCurBlendMode = BM_ADD;
+    FlushPrims();
+
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE );
+}
+
+//==================================================================
+void ImmGL::SetBlendAlpha()
+{
+    if ( mCurBlendMode == BM_ALPHA )
+        return;
+
+    mCurBlendMode = BM_ALPHA;
+    FlushPrims();
+
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 }
 
 //==================================================================
