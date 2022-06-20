@@ -219,26 +219,26 @@ void main()
         return obj;
     };
 
-    mShaderVertex   = makeShader( GL_VERTEX_SHADER  , vtxSrouce[srcIdx] );
-    mShaderFragment = makeShader( GL_FRAGMENT_SHADER, frgSource[srcIdx] );
+    c_auto shaderVtx = makeShader( GL_VERTEX_SHADER  , vtxSrouce[srcIdx] );
+    c_auto shaderFrg = makeShader( GL_FRAGMENT_SHADER, frgSource[srcIdx] );
 
-    mShaderProgram = glCreateProgram();
+    mProgram = glCreateProgram();
 
-    glAttachShader( mShaderProgram, mShaderVertex );
-    glAttachShader( mShaderProgram, mShaderFragment );
-    glLinkProgram( mShaderProgram );
+    glAttachShader( mProgram, shaderVtx );
+    glAttachShader( mProgram, shaderFrg );
+    glLinkProgram( mProgram );
 
-    check_shader_compilation( mShaderProgram, true );
+    check_shader_compilation( mProgram, true );
 
-    // Always detach shaders after a successful link.
-    glDetachShader( mShaderProgram, mShaderVertex );
-    glDetachShader( mShaderProgram, mShaderFragment );
+    // Always detach and delete shaders after a successful link.
+    glDetachShader( mProgram, shaderVtx ); glDeleteShader( shaderVtx );
+    glDetachShader( mProgram, shaderFrg ); glDeleteShader( shaderFrg );
 
     //
     if ( useTex )
     {
-        mTexLoc = glGetUniformLocation( mShaderProgram, "s_tex" );
-        glUseProgram( mShaderProgram );
+        mTexLoc = glGetUniformLocation( mProgram, "s_tex" );
+        glUseProgram( mProgram );
         glUniform1i( mTexLoc, 0 );
     }
 
@@ -249,14 +249,8 @@ void main()
 //==================================================================
 GShaderProg::~GShaderProg()
 {
-    if ( mShaderProgram )
-        glDeleteProgram( mShaderProgram );
-
-    if ( mShaderVertex )
-        glDeleteShader( mShaderVertex );
-
-    if ( mShaderVertex )
-        glDeleteShader( mShaderFragment );
+    if ( mProgram )
+        glDeleteProgram( mProgram );
 }
 
 //==================================================================

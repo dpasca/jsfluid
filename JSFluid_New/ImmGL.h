@@ -28,16 +28,14 @@ using IStr  = std::string;
 class GShaderProg
 {
 public:
-    IUInt   mShaderVertex   {};
-    IUInt   mShaderFragment {};
-    IUInt   mShaderProgram  {};
+    IUInt   mProgram  {};
 
     IUInt   mTexLoc {};
 
     GShaderProg( bool useTex );
     ~GShaderProg();
 
-    const auto GetProgramID() const { return mShaderProgram; }
+    const auto GetProgramID() const { return mProgram; }
 };
 
 //==================================================================
